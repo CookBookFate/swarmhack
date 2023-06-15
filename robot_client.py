@@ -115,6 +115,9 @@ async def send_commands(robot):
         detects something in front of it, when it will turn instead.
         Then every 5 seconds it attempts to regroup the robots by turning them towards the average bearing of all other robots.
         """
+        left = 0
+        right = 0
+
         if robot.state == RobotState.FORWARDS:
             robot.setMove(1,1)
             if (time.time() - robot.turn_time > 0.5) and any(ir > 80 for ir in robot.ir_readings):
@@ -203,6 +206,13 @@ async def send_commands(robot):
                 #right = int(float(robot.MAX_SPEED)/1.4)
                 robot.setMove(-0.5, 0.5)
 
+        elif robot.state == RobotState.TO_GOAL:
+            if abs(robot.bearing_to_their_goal - robot.bearing_to_ball) < ANGLE_RANGE:
+                left = right = robot.MAX_SPEED
+            else:
+                robot.state = RobotState.TO_BALL
+
+
         #This is an example state for moving towards our goal
         elif robot.state == RobotState.TO_OUR_GOAL:
             if robot.distance_to_our_goal < 0.2:
@@ -256,6 +266,7 @@ class RobotState(Enum):
     TO_BALL = 7
     TO_OUR_GOAL = 8
     TO_THEIR_GOAL = 9
+    TO_GOAL = 10
 
 # Main Robot class to keep track of robot states
 class Robot:
@@ -294,10 +305,15 @@ class Robot:
         self.regroup_time = time.time()
 
         self.target_orientation = 0
+<<<<<<< HEAD
+=======
+        self.target_speed = 0
+>>>>>>> 3d551767c3c2fee34ea355b9cee3f86f20035e2b
 
         self.left = 0
         self.right = 0
 
+<<<<<<< HEAD
     #Set the robot's movement
     def setMove(self, right: float, left: float):
         if (left > 1) or (right > 1):
@@ -345,6 +361,8 @@ class Robot:
                 # LEFT
                 return self.setMove(-0.5, 1, self)
 
+=======
+>>>>>>> 3d551767c3c2fee34ea355b9cee3f86f20035e2b
 
 
 #-----------------------------------------------------------------
