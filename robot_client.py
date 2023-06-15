@@ -16,7 +16,7 @@ from vector2d import Vector2D
 import math
 import pprint
 import angles
-import colorama
+import colorama 
 from colorama import Fore
 
 """
@@ -119,7 +119,7 @@ async def send_commands(robot):
         right = 0
 
         if robot.state == RobotState.FORWARDS:
-            left = right = robot.MAX_SPEED
+            robot.setMove(1,1)
             if (time.time() - robot.turn_time > 0.5) and any(ir > 80 for ir in robot.ir_readings):
                 robot.turn_time = time.time()
                 robot.state = random.choice((RobotState.LEFT, RobotState.RIGHT))
@@ -128,18 +128,19 @@ async def send_commands(robot):
             robot.state = RobotState.TO_BALL # used to automatically make the robot go towards the goal
 
         elif robot.state == RobotState.BACKWARDS:
-            left = right = -robot.MAX_SPEED
+            #left = right = -robot.MAX_SPEED
+            robot.setMove(-0.7, -0.7)
             robot.turn_time = time.time() #Note when we started turning
             robot.state = RobotState.FORWARDS
 
         elif robot.state == RobotState.LEFT:
-            left = -robot.MAX_SPEED
-            right = robot.MAX_SPEED
+            robot.setMove(-0.9, 1)
             if time.time() - robot.turn_time > random.uniform(0.5, 1.0): #Ensure we've been turning for some amount of time
                 robot.turn_time = time.time()
                 robot.state = RobotState.FORWARDS
 
         elif robot.state == RobotState.RIGHT:
+            robot.setMove(1, -0.9)
             left = robot.MAX_SPEED
             right = -robot.MAX_SPEED
             if time.time() - robot.turn_time > random.uniform(0.5, 1.0):
@@ -185,21 +186,25 @@ async def send_commands(robot):
         #This is an example state for moving towards the ball
         elif robot.state == RobotState.TO_BALL:
             message["set_leds_colour"] = "yellow"
-            if robot.distance_to_ball < 0.01:
-                # robot.state = RobotState.TO_OUR_GOAL
-                if robot.bearing_to_ball > robot.bearing_to_their_goal:
-                    robotState = RobotState.RIGHT
-                elif robot.bearing_to_ball < robot.bearing_to_their_goal:
-                    robot.state = RobotState.LEFT
-                robot.state = RobotState.TO_GOAL
+            
+            # if robot.distance_to_ball < 0.5:
+            #     # robot.state = RobotState.TO_OUR_GOAL
+            #     if robot.bearing_to_ball > robot.bearing_to_their_goal:
+            #         RobotState.RIGHT
+            #     elif robot.bearing_to_ball < robot.bearing_to_their_goal:
+            #         RobotState.LEFT
+            #     robot.state = RobotState.TO_THEIR_GOAL
+
             if abs(robot.bearing_to_ball) < 20:
-                 left = right = robot.MAX_SPEED
+                 robot.setMove(0.75, 0.75)
             elif robot.bearing_to_ball > 0:
-                left = int(float(robot.MAX_SPEED)/1.4) #If we do a "full speed turn" then they overshoot. 
-                right = -int(float(robot.MAX_SPEED)/1.4) #A good implementation would turn at a speed based on how misalaigned they are
+                #left = int(float(robot.MAX_SPEED)/1.4) #If we do a "full speed turn" then they overshoot. 
+                #right = -int(float(robot.MAX_SPEED)/1.4) #A good implementation would turn at a speed based on how misalaigned they are
+                robot.setMove(0.5, -0.5)
             else:
-                left = -int(float(robot.MAX_SPEED)/1.4)
-                right = int(float(robot.MAX_SPEED)/1.4)
+                #left = -int(float(robot.MAX_SPEED)/1.4)
+                #right = int(float(robot.MAX_SPEED)/1.4)
+                robot.setMove(-0.5, 0.5)
 
         elif robot.state == RobotState.TO_GOAL:
             if abs(robot.bearing_to_their_goal - robot.bearing_to_ball) < ANGLE_RANGE:
@@ -214,13 +219,11 @@ async def send_commands(robot):
                 robot.state = RobotState.TO_THEIR_GOAL
             message["set_leds_colour"] = "cyan"
             if abs(robot.bearing_to_our_goal) < 20:
-                 left = right = robot.MAX_SPEED
+                robot.setMove(0.9, 0.9)
             elif robot.bearing_to_our_goal > 0:
-                left = int(float(robot.MAX_SPEED)/1.4)
-                right = -int(float(robot.MAX_SPEED)/1.4)
+                robot.setMove(0.65, -0.65)
             else:
-                left = -int(float(robot.MAX_SPEED)/1.4)
-                right = int(float(robot.MAX_SPEED)/1.4)
+                robot.setMove(-0.65, 0.65)
 
         #This is an example state for moving towards their goal
         elif robot.state == RobotState.TO_THEIR_GOAL:
@@ -228,20 +231,19 @@ async def send_commands(robot):
                 robot.state = RobotState.TO_BALL
             message["set_leds_colour"] = "magenta"
             if abs(robot.bearing_to_their_goal) < 20:
-                 left = right = robot.MAX_SPEED
+                robot.setMove(0.9, 0.9)
             elif robot.bearing_to_their_goal > 0:
-                left = int(float(robot.MAX_SPEED)/1.4) 
-                right = -int(float(robot.MAX_SPEED)/1.4)
+                robot.setMove(0.6, -0.6)
             else:
-                left = -int(float(robot.MAX_SPEED)/1.4)
-                right = int(float(robot.MAX_SPEED)/1.4)
+                robot.setMove(-0.6, 0.6)
 
         message["set_motor_speeds"] = {}
-        message["set_motor_speeds"]["left"] = left
-        message["set_motor_speeds"]["right"] = right
+        message["set_motor_speeds"]["left"] = robot.left
+        message["set_motor_speeds"]["right"] = robot.right
 
         # Send command message
         await robot.connection.send(json.dumps(message))
+        print(json.dumps(message))
 
     except Exception as e:
         print(f"send_commands: {type(e).__name__}: {e}")
@@ -303,10 +305,56 @@ class Robot:
         self.regroup_time = time.time()
 
         self.target_orientation = 0
-        self.target_speed = 0
 
         self.left = 0
         self.right = 0
+
+    #Set the robot's movement
+    def setMove(self, right: float, left: float):
+        if (left > 1) or (right > 1):
+            return self
+        #if left > right:
+        #    self.state = RobotState.LEFT
+        #elif left < right:
+        #    self.state = RobotState.RIGHT
+        #elif (left == right) and ((left + right) > 0):
+        #    self.state = RobotState.FORWARDS
+        #elif (left == right) and ((left + right) < 0):
+        #    self.state = RobotState.BACKWARDS
+        #elif (left + right) == 0:
+        #    self.state = RobotState.STOP
+        #    # robot.left = 0
+        self.left = left * self.MAX_SPEED
+        # robot.right = 0
+        self.right = right * self.MAX_SPEED
+        return self
+
+    # Check the robot's orientation
+    def orientRobot(self):
+        if (abs(self.target_orientation) - 10 < abs(self.orientation) and abs(self.orientation) < abs(self.target_orientation) + 10):
+            # Forwards
+            return self.setMove(1, 1)
+        elif self.orientation * self.target_orientation >= 0:
+            if self.orientation < other_orientation:
+                # RIGHT
+                return self.setMove(1, -0.5, self)
+            else:
+            # LEFT
+                return self.setMove(-0.5, 1, self)
+        elif self.orientation < 0:
+            if abs(self.orientation) + abs(self.target_orientation) < 180:
+                # RIGHT
+                return self.setMove(1, -0.5, self)
+            else:
+                # LEFT
+                return self.setMove(-0.5, 1, self)
+        else:
+            if abs(self.orientation) + abs(self.target_orientation) > 180:
+                # RIGHT
+                return self.setMove(1, -0.5, self)
+            else:
+                # LEFT
+                return self.setMove(-0.5, 1, self)
 
 
 
@@ -475,7 +523,7 @@ async def get_server_data():
             active_robots[id].distance_to_our_goal = robot["our_goal"]["range"]
             active_robots[id].bearing_to_their_goal = robot["their_goal"]["bearing"]
             active_robots[id].distance_to_their_goal = robot["their_goal"]["range"]
-              
+            
 
     except Exception as e:
         print(f"get_server_data: {type(e).__name__}: {e}")
