@@ -186,26 +186,15 @@ async def send_commands(robot):
         #This is an example state for moving towards the ball
         elif robot.state == RobotState.TO_BALL:
             message["set_leds_colour"] = "yellow"
+            # Get bearings shifted into 0-360 range
+            tgtBearing = robot.bearing_to_their_goal + 180
+            ballBearing = robot.bearing_to_ball + 180
+            #Get bearings adjusted to global zero, shifted to range where sides have same sign
+            tgtAbsBearing = ((tgtBearing + robot.orientation) % 360) - 90
+            ballAbsBearing = ((ballBearing + robot.orientation) % 360) - 90
+
+            if (tgtAbsBearing * ballAbsBearing 
             
-            # if robot.distance_to_ball < 0.5:
-            #     # robot.state = RobotState.TO_OUR_GOAL
-            #     if robot.bearing_to_ball > robot.bearing_to_their_goal:
-            #         RobotState.RIGHT
-            #     elif robot.bearing_to_ball < robot.bearing_to_their_goal:
-            #         RobotState.LEFT
-            #     robot.state = RobotState.TO_THEIR_GOAL
-
-            if abs(robot.bearing_to_ball) < 20:
-                 robot.setMove(0.75, 0.75)
-            elif robot.bearing_to_ball > 0:
-                #left = int(float(robot.MAX_SPEED)/1.4) #If we do a "full speed turn" then they overshoot. 
-                #right = -int(float(robot.MAX_SPEED)/1.4) #A good implementation would turn at a speed based on how misalaigned they are
-                robot.setMove(0.5, -0.5)
-            else:
-                #left = -int(float(robot.MAX_SPEED)/1.4)
-                #right = int(float(robot.MAX_SPEED)/1.4)
-                robot.setMove(-0.5, 0.5)
-
         elif robot.state == RobotState.TO_GOAL:
             if abs(robot.bearing_to_their_goal - robot.bearing_to_ball) < ANGLE_RANGE:
                 left = right = robot.MAX_SPEED
@@ -305,15 +294,7 @@ class Robot:
         self.regroup_time = time.time()
 
         self.target_orientation = 0
-<<<<<<< HEAD
-=======
-        self.target_speed = 0
->>>>>>> 3d551767c3c2fee34ea355b9cee3f86f20035e2b
 
-        self.left = 0
-        self.right = 0
-
-<<<<<<< HEAD
     #Set the robot's movement
     def setMove(self, right: float, left: float):
         if (left > 1) or (right > 1):
@@ -360,9 +341,6 @@ class Robot:
             else:
                 # LEFT
                 return self.setMove(-0.5, 1, self)
-
-=======
->>>>>>> 3d551767c3c2fee34ea355b9cee3f86f20035e2b
 
 
 #-----------------------------------------------------------------
