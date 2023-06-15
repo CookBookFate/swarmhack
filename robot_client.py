@@ -184,13 +184,14 @@ async def send_commands(robot):
         elif robot.state == RobotState.TO_BALL:
             message["set_leds_colour"] = "yellow"
             
-            if robot.distance_to_ball < 0.5:
-                # robot.state = RobotState.TO_OUR_GOAL
-                if robot.bearing_to_ball > robot.bearing_to_their_goal:
-                    RobotState.RIGHT
-                elif robot.bearing_to_ball < robot.bearing_to_their_goal:
-                    RobotState.LEFT
-                robot.state = RobotState.TO_THEIR_GOAL
+            # if robot.distance_to_ball < 0.5:
+            #     # robot.state = RobotState.TO_OUR_GOAL
+            #     if robot.bearing_to_ball > robot.bearing_to_their_goal:
+            #         RobotState.RIGHT
+            #     elif robot.bearing_to_ball < robot.bearing_to_their_goal:
+            #         RobotState.LEFT
+            #     robot.state = RobotState.TO_THEIR_GOAL
+
             if abs(robot.bearing_to_ball) < 20:
                  robot.setMove(0.75, 0.75)
             elif robot.bearing_to_ball > 0:
@@ -511,7 +512,7 @@ async def get_server_data():
             active_robots[id].distance_to_our_goal = robot["our_goal"]["range"]
             active_robots[id].bearing_to_their_goal = robot["their_goal"]["bearing"]
             active_robots[id].distance_to_their_goal = robot["their_goal"]["range"]
-              
+            
 
     except Exception as e:
         print(f"get_server_data: {type(e).__name__}: {e}")
