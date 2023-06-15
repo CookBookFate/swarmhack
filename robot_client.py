@@ -117,14 +117,18 @@ async def send_commands(robot):
         """
         left = 0
         right = 0
+        their_goal_vector = Vector2D.from_polar(robot.bearing_to_their_goal, robot.distance_to_their_goal)
+        ball_vector = Vector2D.from_polar(robot.bearing_to_ball, robot.distance_to_ball)
+        #print(ball_vector)
+        #print(their_goal_vector)
+        vector_to_travel = Vector2D.to_polar(Vector2D.__neg__(their_goal_vector - ball_vector))
+        print(robot.bearing_to_ball)
 
         if robot.state == RobotState.FORWARDS:
             robot.setMove(1,1)
             if (time.time() - robot.turn_time > 0.5) and any(ir > 80 for ir in robot.ir_readings):
                 robot.turn_time = time.time()
                 robot.state = random.choice((RobotState.LEFT, RobotState.RIGHT))
-            #elif (time.time() - robot.regroup_time > 5):
-                # robot.regroup_time = time.time()
             robot.state = RobotState.TO_BALL # used to automatically make the robot go towards the goal
 
         elif robot.state == RobotState.BACKWARDS:
@@ -186,31 +190,6 @@ async def send_commands(robot):
         #This is an example state for moving towards the ball
         elif robot.state == RobotState.TO_BALL:
             message["set_leds_colour"] = "yellow"
-            
-            # if robot.distance_to_ball < 0.5:
-            #     # robot.state = RobotState.TO_OUR_GOAL
-            #     if robot.bearing_to_ball > robot.bearing_to_their_goal:
-            #         RobotState.RIGHT
-            #     elif robot.bearing_to_ball < robot.bearing_to_their_goal:
-            #         RobotState.LEFT
-            #     robot.state = RobotState.TO_THEIR_GOAL
-
-            if abs(robot.bearing_to_ball) < 20:
-                 robot.setMove(0.75, 0.75)
-            elif robot.bearing_to_ball > 0:
-                #left = int(float(robot.MAX_SPEED)/1.4) #If we do a "full speed turn" then they overshoot. 
-                #right = -int(float(robot.MAX_SPEED)/1.4) #A good implementation would turn at a speed based on how misalaigned they are
-                robot.setMove(0.5, -0.5)
-            else:
-                #left = -int(float(robot.MAX_SPEED)/1.4)
-                #right = int(float(robot.MAX_SPEED)/1.4)
-                robot.setMove(-0.5, 0.5)
-
-        elif robot.state == RobotState.TO_GOAL:
-            if abs(robot.bearing_to_their_goal - robot.bearing_to_ball) < ANGLE_RANGE:
-                left = right = robot.MAX_SPEED
-            else:
-                robot.state = RobotState.TO_BALL
 
 
         #This is an example state for moving towards our goal
@@ -227,15 +206,7 @@ async def send_commands(robot):
 
         #This is an example state for moving towards their goal
         elif robot.state == RobotState.TO_THEIR_GOAL:
-            if robot.distance_to_their_goal < 0.2:
-                robot.state = RobotState.TO_BALL
-            message["set_leds_colour"] = "magenta"
-            if abs(robot.bearing_to_their_goal) < 20:
-                robot.setMove(0.9, 0.9)
-            elif robot.bearing_to_their_goal > 0:
-                robot.setMove(0.6, -0.6)
-            else:
-                robot.setMove(-0.6, 0.6)
+            pass
 
         message["set_motor_speeds"] = {}
         message["set_motor_speeds"]["left"] = robot.left
