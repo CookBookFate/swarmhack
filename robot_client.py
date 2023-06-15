@@ -35,7 +35,7 @@ main_loop() using loop.run_until_complete(async_thing_to_run(ids))
 """
 
 robot_ids = [37] #,32, 38]
-ANGLE_RANGE = 5
+ANGLE_RANGE = 0.5
 
 def main_loop():
     # This requests all virtual sensor data from the tracking server for the robots specified in robot_ids
@@ -123,9 +123,9 @@ async def send_commands(robot):
             if (time.time() - robot.turn_time > 0.5) and any(ir > 80 for ir in robot.ir_readings):
                 robot.turn_time = time.time()
                 robot.state = random.choice((RobotState.LEFT, RobotState.RIGHT))
-            elif (time.time() - robot.regroup_time > 5):
-                robot.regroup_time = time.time()
-                robot.state = RobotState.TO_BALL # used to automatically make the robot go towards the goal
+            #elif (time.time() - robot.regroup_time > 5):
+                # robot.regroup_time = time.time()
+            robot.state = RobotState.TO_BALL # used to automatically make the robot go towards the goal
 
         elif robot.state == RobotState.BACKWARDS:
             left = right = -robot.MAX_SPEED
@@ -185,12 +185,12 @@ async def send_commands(robot):
         #This is an example state for moving towards the ball
         elif robot.state == RobotState.TO_BALL:
             message["set_leds_colour"] = "yellow"
-            if robot.distance_to_ball < 0.1:
+            if robot.distance_to_ball < 0.01:
                 # robot.state = RobotState.TO_OUR_GOAL
                 if robot.bearing_to_ball > robot.bearing_to_their_goal:
-                    RobotState.RIGHT
+                    robotState = RobotState.RIGHT
                 elif robot.bearing_to_ball < robot.bearing_to_their_goal:
-                    RobotState.LEFT
+                    robot.state = RobotState.LEFT
                 robot.state = RobotState.TO_GOAL
             if abs(robot.bearing_to_ball) < 20:
                  left = right = robot.MAX_SPEED
@@ -210,7 +210,7 @@ async def send_commands(robot):
 
         #This is an example state for moving towards our goal
         elif robot.state == RobotState.TO_OUR_GOAL:
-            if robot.distance_to_our_goal < 0.2:
+            if robot.distance_to_our_goal < 0.5:
                 robot.state = RobotState.TO_THEIR_GOAL
             message["set_leds_colour"] = "cyan"
             if abs(robot.bearing_to_our_goal) < 20:
