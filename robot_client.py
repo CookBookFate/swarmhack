@@ -16,7 +16,7 @@ from vector2d import Vector2D
 import math
 import pprint
 import angles
-import colorama
+import colorama 
 from colorama import Fore
 
 """
@@ -34,11 +34,12 @@ function should be declared with "async" (see the simple_obstacle_avoidance() ex
 main_loop() using loop.run_until_complete(async_thing_to_run(ids))
 """
 
-robot_ids = [31, 32, 38]
+robot_ids = [37] #,32, 38]
+ANGLE_RANGE = 5
 
 def main_loop():
     # This requests all virtual sensor data from the tracking server for the robots specified in robot_ids
-    # This is stored in the global variable active_robots, a map of id -> instances of the Robot class (defined lower in this file) 
+    # This is stored in the global variable active_robots, a map of id -> instances of the Robot class (defined lower in this file)
     print(Fore.GREEN + "[INFO]: Requesting data from tracking server")
     loop.run_until_complete(get_server_data())
 
@@ -66,7 +67,7 @@ movements. It currently is an example of basic object avoidance.
 This function is called for each robot that we listed in robot_ids that we are interested in.
 """
 async def send_commands(robot):
-    print(f"Commanding robot {robot.id}: Team {robot.team}, Role {robot.role}, Orientation {robot.orientation}")
+    print(f"Commanding robot {robot.id}: Team {robot.team}, Role {robot.role}, Orientation {robot.orientation}, State {robot.state}")
 
     """
     robot.neighbours is a map of all the other robots (i.e. not this one) 
@@ -115,27 +116,27 @@ async def send_commands(robot):
         Then every 5 seconds it attempts to regroup the robots by turning them towards the average bearing of all other robots.
         """
         if robot.state == RobotState.FORWARDS:
-            left = right = robot.MAX_SPEED
             if (time.time() - robot.turn_time > 0.5) and any(ir > 80 for ir in robot.ir_readings):
                 robot.turn_time = time.time()
                 robot.state = random.choice((RobotState.LEFT, RobotState.RIGHT))
-            elif (time.time() - robot.regroup_time > 5): # Every 5 seconds, go into the "regroup" state
+            elif (time.time() - robot.regroup_time > 5):
                 robot.regroup_time = time.time()
-                robot.state = RobotState.REGROUP
+                robot.state = RobotState.TO_BALL # used to automatically make the robot go towards the goal
 
         elif robot.state == RobotState.BACKWARDS:
-            left = right = -robot.MAX_SPEED
+            #left = right = -robot.MAX_SPEED
+            robot.setMove(-0.7, -0.7)
             robot.turn_time = time.time() #Note when we started turning
             robot.state = RobotState.FORWARDS
 
         elif robot.state == RobotState.LEFT:
-            left = -robot.MAX_SPEED
-            right = robot.MAX_SPEED
+            robot.setMove(-0.9, 1)
             if time.time() - robot.turn_time > random.uniform(0.5, 1.0): #Ensure we've been turning for some amount of time
                 robot.turn_time = time.time()
                 robot.state = RobotState.FORWARDS
 
         elif robot.state == RobotState.RIGHT:
+            robot.setMove(1, -0.9)
             left = robot.MAX_SPEED
             right = -robot.MAX_SPEED
             if time.time() - robot.turn_time > random.uniform(0.5, 1.0):
@@ -181,16 +182,23 @@ async def send_commands(robot):
         #This is an example state for moving towards the ball
         elif robot.state == RobotState.TO_BALL:
             message["set_leds_colour"] = "yellow"
-            if robot.distance_to_ball < 0.1:
-                robot.state = RobotState.TO_OUR_GOAL
+            if robot.distance_to_ball < 0.5:
+                # robot.state = RobotState.TO_OUR_GOAL
+                if robot.bearing_to_ball > robot.bearing_to_their_goal:
+                    RobotState.RIGHT
+                elif robot.bearing_to_ball < robot.bearing_to_their_goal:
+                    RobotState.LEFT
+                robot.state = RobotState.TO_THEIR_GOAL
             if abs(robot.bearing_to_ball) < 20:
-                 left = right = robot.MAX_SPEED
+                 robot.setMove(0.75, 0.75)
             elif robot.bearing_to_ball > 0:
-                left = int(float(robot.MAX_SPEED)/1.4) #If we do a "full speed turn" then they overshoot. 
-                right = -int(float(robot.MAX_SPEED)/1.4) #A good implementation would turn at a speed based on how misalaigned they are
+                #left = int(float(robot.MAX_SPEED)/1.4) #If we do a "full speed turn" then they overshoot. 
+                #right = -int(float(robot.MAX_SPEED)/1.4) #A good implementation would turn at a speed based on how misalaigned they are
+                robot.setMove(0.5, -0.5)
             else:
-                left = -int(float(robot.MAX_SPEED)/1.4)
-                right = int(float(robot.MAX_SPEED)/1.4)
+                #left = -int(float(robot.MAX_SPEED)/1.4)
+                #right = int(float(robot.MAX_SPEED)/1.4)
+                robot.setMove(-0.5, 0.5)
 
         #This is an example state for moving towards our goal
         elif robot.state == RobotState.TO_OUR_GOAL:
@@ -198,13 +206,11 @@ async def send_commands(robot):
                 robot.state = RobotState.TO_THEIR_GOAL
             message["set_leds_colour"] = "cyan"
             if abs(robot.bearing_to_our_goal) < 20:
-                 left = right = robot.MAX_SPEED
+                robot.setMove(0.9, 0.9)
             elif robot.bearing_to_our_goal > 0:
-                left = int(float(robot.MAX_SPEED)/1.4)
-                right = -int(float(robot.MAX_SPEED)/1.4)
+                robot.setMove(0.65, -0.65)
             else:
-                left = -int(float(robot.MAX_SPEED)/1.4)
-                right = int(float(robot.MAX_SPEED)/1.4)
+                robot.setMove(-0.65, 0.65)
 
         #This is an example state for moving towards their goal
         elif robot.state == RobotState.TO_THEIR_GOAL:
@@ -212,17 +218,15 @@ async def send_commands(robot):
                 robot.state = RobotState.TO_BALL
             message["set_leds_colour"] = "magenta"
             if abs(robot.bearing_to_their_goal) < 20:
-                 left = right = robot.MAX_SPEED
+                robot.setMove(0.9, 0.9)
             elif robot.bearing_to_their_goal > 0:
-                left = int(float(robot.MAX_SPEED)/1.4) 
-                right = -int(float(robot.MAX_SPEED)/1.4)
+                robot.setMove(0.6, -0.6)
             else:
-                left = -int(float(robot.MAX_SPEED)/1.4)
-                right = int(float(robot.MAX_SPEED)/1.4)
+                robot.setMove(-0.6, 0.6)
 
         message["set_motor_speeds"] = {}
-        message["set_motor_speeds"]["left"] = left
-        message["set_motor_speeds"]["right"] = right
+        message["set_motor_speeds"]["left"] = robot.left
+        message["set_motor_speeds"]["right"] = robot.right
 
         # Send command message
         await robot.connection.send(json.dumps(message))
@@ -230,6 +234,7 @@ async def send_commands(robot):
     except Exception as e:
         print(f"send_commands: {type(e).__name__}: {e}")
 
+# def set_position(robot):
 
 
 
@@ -283,6 +288,58 @@ class Robot:
         self.state = RobotState.STOP
         self.turn_time = time.time()
         self.regroup_time = time.time()
+
+        self.target_orientation = 0
+
+        self.left = 0
+        self.right = 0
+
+    #Set the robot's movement
+    def setMove(self, right: float, left: float):
+        if (left > 1) or (right > 1):
+            return self
+        #if left > right:
+        #    self.state = RobotState.LEFT
+        #elif left < right:
+        #    self.state = RobotState.RIGHT
+        #elif (left == right) and ((left + right) > 0):
+        #    self.state = RobotState.FORWARDS
+        #elif (left == right) and ((left + right) < 0):
+        #    self.state = RobotState.BACKWARDS
+        #elif (left + right) == 0:
+        #    self.state = RobotState.STOP
+        #    # robot.left = 0
+        #self.left = left * robot.MAX_SPEED
+        # robot.right = 0
+        self.right = right * robot.MAX_SPEED
+        return self
+
+    # Check the robot's orientation
+    def orientRobot(self):
+        if (abs(self.target_orientation) - 10 < abs(self.orientation) and abs(self.orientation) < abs(self.target_orientation) + 10):
+            # Forwards
+            return self.setMove(1, 1)
+        elif self.orientation * self.target_orientation >= 0:
+            if self.orientation < other_orientation:
+                # RIGHT
+                return self.setMove(1, -0.5, self)
+            else:
+            # LEFT
+                return self.setMove(-0.5, 1, self)
+        elif self.orientation < 0:
+            if abs(self.orientation) + abs(self.target_orientation) < 180:
+                # RIGHT
+                return self.setMove(1, -0.5, self)
+            else:
+                # LEFT
+                return self.setMove(-0.5, 1, self)
+        else:
+            if abs(self.orientation) + abs(self.target_orientation) > 180:
+                # RIGHT
+                return self.setMove(1, -0.5, self)
+            else:
+                # LEFT
+                return self.setMove(-0.5, 1, self)
 
 
 
