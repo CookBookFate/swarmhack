@@ -116,6 +116,7 @@ async def send_commands(robot):
         Then every 5 seconds it attempts to regroup the robots by turning them towards the average bearing of all other robots.
         """
         if robot.state == RobotState.FORWARDS:
+            robot.setMove(1,1)
             if (time.time() - robot.turn_time > 0.5) and any(ir > 80 for ir in robot.ir_readings):
                 robot.turn_time = time.time()
                 robot.state = random.choice((RobotState.LEFT, RobotState.RIGHT))
@@ -182,6 +183,7 @@ async def send_commands(robot):
         #This is an example state for moving towards the ball
         elif robot.state == RobotState.TO_BALL:
             message["set_leds_colour"] = "yellow"
+            
             if robot.distance_to_ball < 0.5:
                 # robot.state = RobotState.TO_OUR_GOAL
                 if robot.bearing_to_ball > robot.bearing_to_their_goal:
@@ -230,6 +232,7 @@ async def send_commands(robot):
 
         # Send command message
         await robot.connection.send(json.dumps(message))
+        print(json.dumps(message))
 
     except Exception as e:
         print(f"send_commands: {type(e).__name__}: {e}")
@@ -309,9 +312,9 @@ class Robot:
         #elif (left + right) == 0:
         #    self.state = RobotState.STOP
         #    # robot.left = 0
-        #self.left = left * robot.MAX_SPEED
+        self.left = left * self.MAX_SPEED
         # robot.right = 0
-        self.right = right * robot.MAX_SPEED
+        self.right = right * self.MAX_SPEED
         return self
 
     # Check the robot's orientation
