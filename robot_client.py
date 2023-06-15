@@ -34,11 +34,12 @@ function should be declared with "async" (see the simple_obstacle_avoidance() ex
 main_loop() using loop.run_until_complete(async_thing_to_run(ids))
 """
 
-robot_ids = [31, 32, 38]
+robot_ids = [37] #,32, 38]
+ANGLE_RANGE = 5
 
 def main_loop():
     # This requests all virtual sensor data from the tracking server for the robots specified in robot_ids
-    # This is stored in the global variable active_robots, a map of id -> instances of the Robot class (defined lower in this file) 
+    # This is stored in the global variable active_robots, a map of id -> instances of the Robot class (defined lower in this file)
     print(Fore.GREEN + "[INFO]: Requesting data from tracking server")
     loop.run_until_complete(get_server_data())
 
@@ -66,7 +67,7 @@ movements. It currently is an example of basic object avoidance.
 This function is called for each robot that we listed in robot_ids that we are interested in.
 """
 async def send_commands(robot):
-    print(f"Commanding robot {robot.id}: Team {robot.team}, Role {robot.role}, Orientation {robot.orientation}")
+    print(f"Commanding robot {robot.id}: Team {robot.team}, Role {robot.role}, Orientation {robot.orientation}, State {robot.state}")
 
     """
     robot.neighbours is a map of all the other robots (i.e. not this one) 
@@ -114,14 +115,17 @@ async def send_commands(robot):
         detects something in front of it, when it will turn instead.
         Then every 5 seconds it attempts to regroup the robots by turning them towards the average bearing of all other robots.
         """
+        left = 0
+        right = 0
+
         if robot.state == RobotState.FORWARDS:
             left = right = robot.MAX_SPEED
             if (time.time() - robot.turn_time > 0.5) and any(ir > 80 for ir in robot.ir_readings):
                 robot.turn_time = time.time()
                 robot.state = random.choice((RobotState.LEFT, RobotState.RIGHT))
-            elif (time.time() - robot.regroup_time > 5): # Every 5 seconds, go into the "regroup" state
+            elif (time.time() - robot.regroup_time > 5):
                 robot.regroup_time = time.time()
-                robot.state = RobotState.REGROUP
+                robot.state = RobotState.TO_BALL # used to automatically make the robot go towards the goal
 
         elif robot.state == RobotState.BACKWARDS:
             left = right = -robot.MAX_SPEED
@@ -182,7 +186,12 @@ async def send_commands(robot):
         elif robot.state == RobotState.TO_BALL:
             message["set_leds_colour"] = "yellow"
             if robot.distance_to_ball < 0.1:
-                robot.state = RobotState.TO_OUR_GOAL
+                # robot.state = RobotState.TO_OUR_GOAL
+                if robot.bearing_to_ball > robot.bearing_to_their_goal:
+                    RobotState.RIGHT
+                elif robot.bearing_to_ball < robot.bearing_to_their_goal:
+                    RobotState.LEFT
+                robot.state = RobotState.TO_GOAL
             if abs(robot.bearing_to_ball) < 20:
                  left = right = robot.MAX_SPEED
             elif robot.bearing_to_ball > 0:
@@ -191,6 +200,13 @@ async def send_commands(robot):
             else:
                 left = -int(float(robot.MAX_SPEED)/1.4)
                 right = int(float(robot.MAX_SPEED)/1.4)
+
+        elif robot.state == RobotState.TO_GOAL:
+            if abs(robot.bearing_to_their_goal - robot.bearing_to_ball) < ANGLE_RANGE:
+                left = right = robot.MAX_SPEED
+            else:
+                robot.state = RobotState.TO_BALL
+
 
         #This is an example state for moving towards our goal
         elif robot.state == RobotState.TO_OUR_GOAL:
@@ -230,6 +246,7 @@ async def send_commands(robot):
     except Exception as e:
         print(f"send_commands: {type(e).__name__}: {e}")
 
+# def set_position(robot):
 
 
 
@@ -247,6 +264,7 @@ class RobotState(Enum):
     TO_BALL = 7
     TO_OUR_GOAL = 8
     TO_THEIR_GOAL = 9
+    TO_GOAL = 10
 
 # Main Robot class to keep track of robot states
 class Robot:
@@ -283,6 +301,12 @@ class Robot:
         self.state = RobotState.STOP
         self.turn_time = time.time()
         self.regroup_time = time.time()
+
+        self.target_orientation = 0
+        self.target_speed = 0
+
+        self.left = 0
+        self.right = 0
 
 
 
