@@ -34,7 +34,7 @@ function should be declared with "async" (see the simple_obstacle_avoidance() ex
 main_loop() using loop.run_until_complete(async_thing_to_run(ids))
 """
 
-robot_ids = [40] #,32, 38]
+robot_ids = [32] #,32, 38]
 ANGLE_RANGE = 0.5
 
 def angDiff(ang1: float, ang2: float):
@@ -43,11 +43,9 @@ def angDiff(ang1: float, ang2: float):
     return -a if a < b else b
 
 def angRangeLimit(ang: float):
-    if (ang > 180):
-        ang = (-180) + (ang-180)
-    elif (ang < -180):
-        ang = -(180+ang)
-    return ang
+    angSh = (ang) % (360)
+    if angSh > 180: angSh -= 360
+    return angSh
 
 def main_loop():
     # This requests all virtual sensor data from the tracking server for the robots specified in robot_ids
@@ -203,19 +201,22 @@ async def send_commands(robot):
         elif robot.state == RobotState.TO_BALL:
             message["set_leds_colour"] = "yellow"
             # Get bearings shifted into 0-360 range
-            tgtBearing = robot.bearing_to_their_goal
-            ballBearing = robot.bearing_to_ball
+            antiTgtBearing = (robot.bearing_to_our_goal+180)%360
+            tgtBearing = (robot.bearing_to_their_goal + 180)%360 
+            ballBearing = (robot.bearing_to_ball+180)%360
+            orientationBearing = ((robot.orientation+180)%360)
             #Get bearings adjusted to global zero, shifted to range where sides have same sign
-            tgtAbsBearing = angRangeLimit(tgtBearing + robot.orientation)
-            ballAbsBearing = angRangeLimit(ballBearing + robot.orientation)
-
-            tgtBearingShft = angRangeLimit(tgtAbsBearing + 90) #Shift for X
-            ballBearingShft = angRangeLimit(ballAbsBearing + 90)
+            tgtAbsBearing = (tgtBearing + orientationBearing - 90)%360
+            antiTgtAbsBearing = (antiTgtBearing + orientationBearing)%360
+            ballAbsBearing = (ballBearing + orientationBearing - 90)%360
             
-            print(f'tgtAbs {tgtAbsBearing} ballAbs {ballAbsBearing} | ball {ballBearing} tgt {tgtBearing}')
+            tgtBearingShft = angRangeLimit(tgtAbsBearing - 90) #Shift for X
+            ballBearingShft = angRangeLimit(ballAbsBearing - 90)
+            
+            print(f'tgtAbs {tgtAbsBearing} ballAbs {ballAbsBearing} | ball {ballBearing} tgt {tgtBearing} | our goal {antiTgtBearing} | our goal abs {antiTgtAbsBearing}')
             print(f'dist ball: {robot.distance_to_ball}')
-            print(f'ball ang: {robot.bearing_to_ball}')
-            print(f'goal ang {robot.bearing_to_their_goal}')
+            print(f'ball shft ang: {ballBearingShft}')
+            print(f'goal shft ang {tgtBearingShft}')
             
             ballGoalAng = angDiff(robot.bearing_to_ball, robot.bearing_to_their_goal)
             print (f'ball goal ang: {ballGoalAng}')
@@ -224,18 +225,18 @@ async def send_commands(robot):
             if (abs(ballGoalAng) < 15) :
                 robot.target_orientation = (((robot.bearing_to_ball + robot.orientation)+180) %360) - 180
                 print("go ball")
-            elif (tgtBearingShft * ballBearingShft < 0):
+            elif not ((tgtAbsBearing > 180 and ballAbsBearing >180) or (tgtAbsBearing < 180 and ballAbsBearing < 180)):
                 print("x")
-                #Different Sign, X position incorrect - Travel along X
-                if (tgtAbsBearing < 0):
-                    robot.target_orientation = -185
-                else:
-                    robot.target_orientation = 175
+                #Same Sign, X position incorrect - Travel along X
+                #if (tgtAbsBearing < 0):
+                robot.target_orientation = antiTgtAbsBearing
+                #else:
+                #    robot.target_orientation = 175
             else:
                 print("y")
                 #Same Sign - Travel along Y
-                ballAbsBearing = angRangeLimit(ballAbsBearing - 90)
-                print(ballAbsBearing)
+                ballAbsBearing = angRangeLimit(ballAbsBearing)
+                print(f'ballabs {ballAbsBearing}')
                 if ((ballAbsBearing) < 0):
                     robot.target_orientation = (90)
                 else:
