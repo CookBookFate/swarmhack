@@ -34,13 +34,20 @@ function should be declared with "async" (see the simple_obstacle_avoidance() ex
 main_loop() using loop.run_until_complete(async_thing_to_run(ids))
 """
 
-robot_ids = [35] #,32, 38]
+robot_ids = [40] #,32, 38]
 ANGLE_RANGE = 0.5
 
 def angDiff(ang1: float, ang2: float):
     a = (ang1 - ang2) % 360
     b = (ang2 - ang1) % 360
     return -a if a < b else b
+
+def angRangeLimit(ang: float):
+    if (ang > 180):
+        ang = (-180) + (ang-180)
+    elif (ang < -180):
+        ang = -(180+ang)
+    return ang
 
 def main_loop():
     # This requests all virtual sensor data from the tracking server for the robots specified in robot_ids
@@ -196,38 +203,43 @@ async def send_commands(robot):
         elif robot.state == RobotState.TO_BALL:
             message["set_leds_colour"] = "yellow"
             # Get bearings shifted into 0-360 range
-            tgtBearing = robot.bearing_to_their_goal + 180
-            ballBearing = robot.bearing_to_ball + 180
+            tgtBearing = robot.bearing_to_their_goal
+            ballBearing = robot.bearing_to_ball
             #Get bearings adjusted to global zero, shifted to range where sides have same sign
-            tgtAbsBearing = ((tgtBearing + robot.orientation) % 360) - 90
-            ballAbsBearing = ((ballBearing + robot.orientation) % 360) - 90
+            tgtAbsBearing = angRangeLimit(tgtBearing + robot.orientation)
+            ballAbsBearing = angRangeLimit(ballBearing + robot.orientation)
+
+            tgtBearingShft = angRangeLimit(tgtAbsBearing + 90) #Shift for X
+            ballBearingShft = angRangeLimit(ballAbsBearing + 90)
+            
             print(f'tgtAbs {tgtAbsBearing} ballAbs {ballAbsBearing} | ball {ballBearing} tgt {tgtBearing}')
             print(f'dist ball: {robot.distance_to_ball}')
             print(f'ball ang: {robot.bearing_to_ball}')
             print(f'goal ang {robot.bearing_to_their_goal}')
+            
             ballGoalAng = angDiff(robot.bearing_to_ball, robot.bearing_to_their_goal)
             print (f'ball goal ang: {ballGoalAng}')
-            if (time.time() - robot.turn_time > 0.5):
-                robot.turn_time = time.time()
-                if (abs(ballGoalAng) < 15) :
-                    robot.target_orientation = (((robot.bearing_to_ball + robot.orientation)+180) %360) - 180
-                    print("go ball")
-                elif (tgtAbsBearing * ballAbsBearing < 0):
-                    print("x")
-                    #Different Sign, X position incorrect - Travel along X
-                    if (tgtAbsBearing < 0):
-                        robot.target_orientation = -185
-                    else:
-                        robot.target_orientation = 175
+            robot.turn_time = time.time()
+            
+            if (abs(ballGoalAng) < 15) :
+                robot.target_orientation = (((robot.bearing_to_ball + robot.orientation)+180) %360) - 180
+                print("go ball")
+            elif (tgtBearingShft * ballBearingShft < 0):
+                print("x")
+                #Different Sign, X position incorrect - Travel along X
+                if (tgtAbsBearing < 0):
+                    robot.target_orientation = -185
                 else:
-                    print("y")
-                    #Same Sign - Travel along Y
-                    ballAbsBearing = ballAbsBearing - 90
-                    print(ballAbsBearing)
-                    if ((ballAbsBearing) < 0):
-                        robot.target_orientation = (-90)
-                    else:
-                        robot.target_orientation = (90)
+                    robot.target_orientation = 175
+            else:
+                print("y")
+                #Same Sign - Travel along Y
+                ballAbsBearing = angRangeLimit(ballAbsBearing - 90)
+                print(ballAbsBearing)
+                if ((ballAbsBearing) < 0):
+                    robot.target_orientation = (90)
+                else:
+                    robot.target_orientation = (-90)
 
             #Go to orientation
             print(f'target orientation: {robot.target_orientation}')
@@ -356,8 +368,6 @@ class Robot:
         #     print("forwards")
         #     # Forwards
         #     return self.setMove(1, 1)
-        
-
         difference = angDiff(self.target_orientation, self.orientation)
         print(f'dif {difference}')
         if (abs(difference) < 20):
