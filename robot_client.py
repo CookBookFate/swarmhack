@@ -34,8 +34,13 @@ function should be declared with "async" (see the simple_obstacle_avoidance() ex
 main_loop() using loop.run_until_complete(async_thing_to_run(ids))
 """
 
-robot_ids = [37] #,32, 38]
-ANGLE_RANGE = 5
+robot_ids = [35] #,32, 38]
+ANGLE_RANGE = 0.5
+
+def angDiff(ang1: float, ang2: float):
+    a = (ang1 - ang2) % 360
+    b = (ang2 - ang1) % 360
+    return -a if a < b else b
 
 def main_loop():
     # This requests all virtual sensor data from the tracking server for the robots specified in robot_ids
@@ -68,7 +73,7 @@ This function is called for each robot that we listed in robot_ids that we are i
 """
 async def send_commands(robot):
     print(f"Commanding robot {robot.id}: Team {robot.team}, Role {robot.role}, Orientation {robot.orientation}, State {robot.state}")
-
+    
     """
     robot.neighbours is a map of all the other robots (i.e. not this one) 
     with their role, team, range from this robot, and bearing from this robot
@@ -117,15 +122,19 @@ async def send_commands(robot):
         """
         left = 0
         right = 0
+        their_goal_vector = Vector2D.from_polar(robot.bearing_to_their_goal, robot.distance_to_their_goal)
+        ball_vector = Vector2D.from_polar(robot.bearing_to_ball, robot.distance_to_ball)
+        #print(ball_vector)
+        #print(their_goal_vector)
+        vector_to_travel = Vector2D.to_polar(Vector2D.__neg__(their_goal_vector - ball_vector))
+        print(robot.bearing_to_ball)
 
         if robot.state == RobotState.FORWARDS:
             robot.setMove(1,1)
             if (time.time() - robot.turn_time > 0.5) and any(ir > 80 for ir in robot.ir_readings):
                 robot.turn_time = time.time()
                 robot.state = random.choice((RobotState.LEFT, RobotState.RIGHT))
-            elif (time.time() - robot.regroup_time > 5):
-                robot.regroup_time = time.time()
-                robot.state = RobotState.TO_BALL # used to automatically make the robot go towards the goal
+            robot.state = RobotState.TO_BALL # used to automatically make the robot go towards the goal
 
         elif robot.state == RobotState.BACKWARDS:
             #left = right = -robot.MAX_SPEED
@@ -192,8 +201,38 @@ async def send_commands(robot):
             #Get bearings adjusted to global zero, shifted to range where sides have same sign
             tgtAbsBearing = ((tgtBearing + robot.orientation) % 360) - 90
             ballAbsBearing = ((ballBearing + robot.orientation) % 360) - 90
+            print(f'tgtAbs {tgtAbsBearing} ballAbs {ballAbsBearing} | ball {ballBearing} tgt {tgtBearing}')
+            print(f'dist ball: {robot.distance_to_ball}')
+            print(f'ball ang: {robot.bearing_to_ball}')
+            print(f'goal ang {robot.bearing_to_their_goal}')
+            ballGoalAng = angDiff(robot.bearing_to_ball, robot.bearing_to_their_goal)
+            print (f'ball goal ang: {ballGoalAng}')
+            if (time.time() - robot.turn_time > 0.5):
+                robot.turn_time = time.time()
+                if (abs(ballGoalAng) < 15) :
+                    robot.target_orientation = (((robot.bearing_to_ball + robot.orientation)+180) %360) - 180
+                    print("go ball")
+                elif (tgtAbsBearing * ballAbsBearing < 0):
+                    print("x")
+                    #Different Sign, X position incorrect - Travel along X
+                    if (tgtAbsBearing < 0):
+                        robot.target_orientation = -185
+                    else:
+                        robot.target_orientation = 175
+                else:
+                    print("y")
+                    #Same Sign - Travel along Y
+                    ballAbsBearing = ballAbsBearing - 90
+                    print(ballAbsBearing)
+                    if ((ballAbsBearing) < 0):
+                        robot.target_orientation = (-90)
+                    else:
+                        robot.target_orientation = (90)
 
-            if (tgtAbsBearing * ballAbsBearing 
+            #Go to orientation
+            print(f'target orientation: {robot.target_orientation}')
+            robot.orientRobot()
+            
             
         elif robot.state == RobotState.TO_GOAL:
             if abs(robot.bearing_to_their_goal - robot.bearing_to_ball) < ANGLE_RANGE:
@@ -204,7 +243,7 @@ async def send_commands(robot):
 
         #This is an example state for moving towards our goal
         elif robot.state == RobotState.TO_OUR_GOAL:
-            if robot.distance_to_our_goal < 0.2:
+            if robot.distance_to_our_goal < 0.5:
                 robot.state = RobotState.TO_THEIR_GOAL
             message["set_leds_colour"] = "cyan"
             if abs(robot.bearing_to_our_goal) < 20:
@@ -216,15 +255,7 @@ async def send_commands(robot):
 
         #This is an example state for moving towards their goal
         elif robot.state == RobotState.TO_THEIR_GOAL:
-            if robot.distance_to_their_goal < 0.2:
-                robot.state = RobotState.TO_BALL
-            message["set_leds_colour"] = "magenta"
-            if abs(robot.bearing_to_their_goal) < 20:
-                robot.setMove(0.9, 0.9)
-            elif robot.bearing_to_their_goal > 0:
-                robot.setMove(0.6, -0.6)
-            else:
-                robot.setMove(-0.6, 0.6)
+            pass
 
         message["set_motor_speeds"] = {}
         message["set_motor_speeds"]["left"] = robot.left
@@ -317,31 +348,48 @@ class Robot:
 
     # Check the robot's orientation
     def orientRobot(self):
-        if (abs(self.target_orientation) - 10 < abs(self.orientation) and abs(self.orientation) < abs(self.target_orientation) + 10):
-            # Forwards
-            return self.setMove(1, 1)
-        elif self.orientation * self.target_orientation >= 0:
-            if self.orientation < other_orientation:
-                # RIGHT
-                return self.setMove(1, -0.5, self)
-            else:
-            # LEFT
-                return self.setMove(-0.5, 1, self)
-        elif self.orientation < 0:
-            if abs(self.orientation) + abs(self.target_orientation) < 180:
-                # RIGHT
-                return self.setMove(1, -0.5, self)
-            else:
-                # LEFT
-                return self.setMove(-0.5, 1, self)
-        else:
-            if abs(self.orientation) + abs(self.target_orientation) > 180:
-                # RIGHT
-                return self.setMove(1, -0.5, self)
-            else:
-                # LEFT
-                return self.setMove(-0.5, 1, self)
+        # if abs(self.target_orientation) + 15 > 180:
+        #     targetRanged = abs(((-180) + self.target_orientation) + 15)
+        # else:
+        #     targetRanged = abs(self.target_orientation) + 15
+        # if (abs(self.target_orientation) - 15 < abs(self.orientation) and (abs(self.orientation) < targetRanged)):
+        #     print("forwards")
+        #     # Forwards
+        #     return self.setMove(1, 1)
+        
 
+        difference = angDiff(self.target_orientation, self.orientation)
+        print(f'dif {difference}')
+        if (abs(difference) < 20):
+            print(f'forwards')
+            print(f'orient dif {difference}')
+            return self.setMove(0.9,0.9)
+        elif (difference > 0):
+            return self.setMove(0.9, -0.7)
+        else:
+            return self.setMove(-0.7, 0.9)
+        
+        # if self.orientation * self.target_orientation >= 0:
+        #     if self.orientation < self.target_orientation:
+        #         # RIGHT
+        #         return self.setMove(0.9, -0.5)
+        #     else:
+        #     # LEFT
+        #         return self.setMove(-0.5, 0.9)
+        # elif self.orientation < 0:
+        #     if abs(self.orientation) + abs(self.target_orientation) < 180:
+        #         # RIGHT
+        #         return self.setMove(0.9, -0.5)
+        #     else:
+        #         # LEFT
+        #         return self.setMove(-0.5, 0.9)
+        # else:
+        #     if abs(self.orientation) + abs(self.target_orientation) > 180:
+        #         # RIGHT
+        #         return self.setMove(0.9, -0.5)
+        #     else:
+        #         # LEFT
+        #         return self.setMove(-0.5, 0.9)
 
 #-----------------------------------------------------------------
 # You probably don't need to change anything below here

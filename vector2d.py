@@ -16,6 +16,11 @@ class Vector2D:
         """Unambiguous string representation of the vector."""
         return repr((self.x, self.y))
 
+    def from_polar(angle : float, distance : float):
+        x = distance * math.cos(math.radians(angle))
+        y = distance * math.sin(math.radians(angle))
+        return Vector2D (x, y)
+
     def dot(self, other):
         """The scalar (dot) product of self and other. Both must be vectors."""
 
