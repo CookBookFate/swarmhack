@@ -196,13 +196,20 @@ async def send_commands(robot):
             robot.turn_time = time.time()
             closest_range = 100
             closest_bot = {}
+            print(robot.ir_readings)
             for neighbour_id, bot in robot.neighbours.items():
                 if (bot["range"] < closest_range) and (bot["team"] != robot.team):
                     closest_bot = bot
                     closest_range = bot["range"]
-            if (abs(ballGoalAng) < 10) or (any(ir > 80 for ir in robot.ir_readings) and robot.distance_to_ball > 0.1):    
-                robot.target_orientation = (((robot.bearing_to_ball + robot.orientation)+180) %360) - 180
+            
+            if (abs(ballGoalAng) < 10):
+                robot.target_orientation = (((robot.bearing_to_ball + robot.orientation + random.randrange(-5, 5))+180) %360) - 180
                 print("go ball")
+            elif  (any(ir > 50 for ir in robot.ir_readings) and robot.distance_to_ball > 0.1):
+                if robot.ir_readings[0] > 500:
+                    robot.target_orientation += -45
+                elif robot.ir_readings[4] > 50:
+                    robot.target_orientation += 45
             elif not ((tgtAbsBearing > 180 and ballAbsBearing >180) or (tgtAbsBearing < 180 and ballAbsBearing < 180)):
                 print("x")
                 #Same Sign, X position incorrect - Travel along X
@@ -221,14 +228,14 @@ async def send_commands(robot):
                 print(f'ballabs {ballAbsBearing}')
                 if ((ballGoalAng) < 0):
                     if robot.team == 'BLUE':
-                        robot.target_orientation = (-90)
+                        robot.target_orientation = (-95)
                     else:
-                        robot.target_orientation = (90)
+                        robot.target_orientation = (85)
                 else:
                     if robot.team == 'BLUE':
-                        robot.target_orientation = (90)
+                        robot.target_orientation = (95)
                     else:
-                        robot.target_orientation = (-90)
+                        robot.target_orientation = (-85)
 
             #Go to orientation
             print(f'target orientation: {robot.target_orientation}')
