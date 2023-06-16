@@ -16,7 +16,7 @@ from vector2d import Vector2D
 import math
 import pprint
 import angles
-import colorama
+import colorama 
 from colorama import Fore
 
 """
@@ -34,8 +34,13 @@ function should be declared with "async" (see the simple_obstacle_avoidance() ex
 main_loop() using loop.run_until_complete(async_thing_to_run(ids))
 """
 
-robot_ids = [37] #,32, 38]
+robot_ids = [35] #,32, 38]
 ANGLE_RANGE = 0.5
+
+def angDiff(ang1: float, ang2: float):
+    a = (ang1 - ang2) % 360
+    b = (ang2 - ang1) % 360
+    return -a if a < b else b
 
 def main_loop():
     # This requests all virtual sensor data from the tracking server for the robots specified in robot_ids
@@ -68,7 +73,7 @@ This function is called for each robot that we listed in robot_ids that we are i
 """
 async def send_commands(robot):
     print(f"Commanding robot {robot.id}: Team {robot.team}, Role {robot.role}, Orientation {robot.orientation}, State {robot.state}")
-
+    
     """
     robot.neighbours is a map of all the other robots (i.e. not this one) 
     with their role, team, range from this robot, and bearing from this robot
@@ -100,12 +105,12 @@ async def send_commands(robot):
         """
         Construct a command message
         Robots are controlled by sending them a JSON dictionary which we create here using the message variable
-
+        
         We can set the speed of the wheel motors (from -100 to 100). Setting them to the same value makes the robot go forwards
         or backwards. Setting them differently makes the robot turn. For example:
         message["set_motor_speeds"]["left"] = 100
         message["set_motor_speeds"]["right"] = 100
-
+    
         We can also set the colour of the LED. Supported colours are "off", "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"
         message["set_leds_colour"] = "green"
 
@@ -115,134 +120,142 @@ async def send_commands(robot):
         detects something in front of it, when it will turn instead.
         Then every 5 seconds it attempts to regroup the robots by turning them towards the average bearing of all other robots.
         """
-        # left = 0
-        # right = 0
+        left = 0
+        right = 0
         their_goal_vector = Vector2D.from_polar(robot.bearing_to_their_goal, robot.distance_to_their_goal)
         ball_vector = Vector2D.from_polar(robot.bearing_to_ball, robot.distance_to_ball)
         #print(ball_vector)
         #print(their_goal_vector)
         vector_to_travel = Vector2D.to_polar(Vector2D.__neg__(their_goal_vector - ball_vector))
-        # print(robot.bearing_to_ball)
+        print(robot.bearing_to_ball)
 
-        if robot.state == RobotState.TEST_STATE:
-            print(robot.orientation)
-            left = right = robot.MAX_SPEED
-            # if robot.orientation < 0:
-                # left = 0
-                # right = robot.MAX_SPEED
-            #else:
-                #left = robot.MAX_SPEED
-                #right = 0
+        if robot.state == RobotState.FORWARDS:
+            robot.setMove(1,1)
+            if (time.time() - robot.turn_time > 0.5) and any(ir > 80 for ir in robot.ir_readings):
+                robot.turn_time = time.time()
+                robot.state = random.choice((RobotState.LEFT, RobotState.RIGHT))
+            robot.state = RobotState.TO_BALL # used to automatically make the robot go towards the goal
 
-        # if robot.state == RobotState.FORWARDS:
-        #     robot.setMove(1,1)
-        #     if (time.time() - robot.turn_time > 0.5) and any(ir > 80 for ir in robot.ir_readings):
-        #         robot.turn_time = time.time()
-        #         robot.state = random.choice((RobotState.LEFT, RobotState.RIGHT))
-        #     stop = check_zone(robot)
-        #     if (stop):
-        #         left = right = 0   # how do I make it stop!
-        #     else:
-        #         robot.state = RobotState.TO_BALL # used to automatically make the robot go towards the goal
-        #
-        # elif robot.state == RobotState.BACKWARDS:
-        #     #left = right = -robot.MAX_SPEED
-        #     robot.setMove(-0.7, -0.7)
-        #     robot.turn_time = time.time() #Note when we started turning
-        #     stop = check_zone(robot)
-        #     if stop:
-        #         left = right = 0
-        #     else:
-        #         robot.state = RobotState.FORWARDS
-        #
-        # elif robot.state == RobotState.LEFT:
-        #     robot.setMove(-0.9, 1)
-        #     if time.time() - robot.turn_time > random.uniform(0.5, 1.0): #Ensure we've been turning for some amount of time
-        #         robot.turn_time = time.time()
-        #         stop = check_zone(robot)
-        #         if (stop):
-        #             left = right = 0
-        #         else:
-        #             robot.state = RobotState.FORWARDS
-        #
-        # elif robot.state == RobotState.RIGHT:
-        #     robot.setMove(1, -0.9)
-        #     left = robot.MAX_SPEED
-        #     right = -robot.MAX_SPEED
-        #     if time.time() - robot.turn_time > random.uniform(0.5, 1.0):
-        #         robot.turn_time = time.time()
-        #         stop = check_zone(robot)
-        #         if (stop):
-        #             left = right = 0
-        #         else:
-        #             robot.state = RobotState.FORWARDS
-        #
-        # #Robots are created in the STOP state
-        # elif robot.state == RobotState.STOP:
-        #     left = right = 0
-        #     robot.turn_time = time.time()
-        #     robot.state = RobotState.FORWARDS
-        #
-        # #In the regroup state, they try to group back together
-        # #This is an example of using the robot.neighbours map to set our target direction based on where other robots are.
-        # #It will get vectors to all other robots, average the direction, and so move the "middle" of the swarm
-        # elif robot.state == RobotState.REGROUP:
-        #     message["set_leds_colour"] = "green"
-        #
-        #     target_direction = Vector2D(0, 0) #Create a zero vector to work with
-        #     for neighbour_id, neighbour in robot.neighbours.items(): #For every other robot (you probably want to filter this by team/role)
-        #
-        #         vector_to_neighbour = Vector2D(neighbour["range"] * math.cos(math.radians(neighbour["bearing"])),
-        #                                        neighbour["range"] * math.sin(math.radians(neighbour["bearing"])))
-        #
-        #         target_direction += vector_to_neighbour #Add up all the neighbour vectors
-        #     target_direction /= len(robot.neighbours) #Average them
-        #
-        #     direction_polar = target_direction.to_polar() #By getting a polar vector, we get the target bearing
-        #     #But that bearing is in radians, so we convert to degrees that are normalised to between 180 and -180, like this:
-        #     heading = angles.normalize(math.degrees(direction_polar[1]), -180, 180)
-        #
-        #     #Turn left or right based on the resulting angle
-        #     if heading > 0:
-        #         left = robot.MAX_SPEED
-        #         right = 0
-        #     else:
-        #         left = 0
-        #         right = robot.MAX_SPEED
-        #     if time.time() - robot.regroup_time > random.uniform(3.0, 4.0): #Back into the FORWARDS state after a delay
-        #         message["set_leds_colour"] = "red"
-        #         robot.state = RobotState.FORWARDS
-        #
-        # #This is an example state for moving towards the ball
-        # elif robot.state == RobotState.TO_BALL:
-        #     message["set_leds_colour"] = "yellow"
-        #     stop = check_zone(robot)
-        #     if robot.orientation > 0:
-        #         left = robot.MAX_SPEED
-        #         right = 0
-        #     else:
-        #         left = 0
-        #         right = robot.MAX_SPEED
-        #     if (stop):
-        #         left = right = 0
-        #     else:
-        #         robot.state = RobotState.TO_BALL
-        #
-        # #This is an example state for moving towards our goal
-        # elif robot.state == RobotState.TO_OUR_GOAL:
-        #     if robot.distance_to_our_goal < 0.5:
-        #         robot.state = RobotState.TO_THEIR_GOAL
-        #     message["set_leds_colour"] = "cyan"
-        #     if abs(robot.bearing_to_our_goal) < 20:
-        #         robot.setMove(0.9, 0.9)
-        #     elif robot.bearing_to_our_goal > 0:
-        #         robot.setMove(0.65, -0.65)
-        #     else:
-        #         robot.setMove(-0.65, 0.65)
-        #
-        # #This is an example state for moving towards their goal
-        # elif robot.state == RobotState.TO_THEIR_GOAL:
-        #     check_zone()
+        elif robot.state == RobotState.BACKWARDS:
+            #left = right = -robot.MAX_SPEED
+            robot.setMove(-0.7, -0.7)
+            robot.turn_time = time.time() #Note when we started turning
+            robot.state = RobotState.FORWARDS
+
+        elif robot.state == RobotState.LEFT:
+            robot.setMove(-0.9, 1)
+            if time.time() - robot.turn_time > random.uniform(0.5, 1.0): #Ensure we've been turning for some amount of time
+                robot.turn_time = time.time()
+                robot.state = RobotState.FORWARDS
+
+        elif robot.state == RobotState.RIGHT:
+            robot.setMove(1, -0.9)
+            left = robot.MAX_SPEED
+            right = -robot.MAX_SPEED
+            if time.time() - robot.turn_time > random.uniform(0.5, 1.0):
+                robot.turn_time = time.time()
+                robot.state = RobotState.FORWARDS
+
+        #Robots are created in the STOP state
+        elif robot.state == RobotState.STOP:
+            left = right = 0
+            robot.turn_time = time.time()
+            robot.state = RobotState.FORWARDS
+
+        #In the regroup state, they try to group back together
+        #This is an example of using the robot.neighbours map to set our target direction based on where other robots are.
+        #It will get vectors to all other robots, average the direction, and so move the "middle" of the swarm
+        elif robot.state == RobotState.REGROUP:
+            message["set_leds_colour"] = "green"
+
+            target_direction = Vector2D(0, 0) #Create a zero vector to work with
+            for neighbour_id, neighbour in robot.neighbours.items(): #For every other robot (you probably want to filter this by team/role)
+                
+                vector_to_neighbour = Vector2D(neighbour["range"] * math.cos(math.radians(neighbour["bearing"])),
+                                               neighbour["range"] * math.sin(math.radians(neighbour["bearing"])))
+
+                target_direction += vector_to_neighbour #Add up all the neighbour vectors
+            target_direction /= len(robot.neighbours) #Average them
+
+            direction_polar = target_direction.to_polar() #By getting a polar vector, we get the target bearing
+            #But that bearing is in radians, so we convert to degrees that are normalised to between 180 and -180, like this:
+            heading = angles.normalize(math.degrees(direction_polar[1]), -180, 180)
+
+            #Turn left or right based on the resulting angle
+            if heading > 0:
+                left = robot.MAX_SPEED
+                right = 0
+            else:
+                left = 0
+                right = robot.MAX_SPEED
+            if time.time() - robot.regroup_time > random.uniform(3.0, 4.0): #Back into the FORWARDS state after a delay
+                message["set_leds_colour"] = "red"
+                robot.state = RobotState.FORWARDS
+
+        #This is an example state for moving towards the ball
+        elif robot.state == RobotState.TO_BALL:
+            message["set_leds_colour"] = "yellow"
+            # Get bearings shifted into 0-360 range
+            tgtBearing = robot.bearing_to_their_goal + 180
+            ballBearing = robot.bearing_to_ball + 180
+            #Get bearings adjusted to global zero, shifted to range where sides have same sign
+            tgtAbsBearing = ((tgtBearing + robot.orientation) % 360) - 90
+            ballAbsBearing = ((ballBearing + robot.orientation) % 360) - 90
+            print(f'tgtAbs {tgtAbsBearing} ballAbs {ballAbsBearing} | ball {ballBearing} tgt {tgtBearing}')
+            print(f'dist ball: {robot.distance_to_ball}')
+            print(f'ball ang: {robot.bearing_to_ball}')
+            print(f'goal ang {robot.bearing_to_their_goal}')
+            ballGoalAng = angDiff(robot.bearing_to_ball, robot.bearing_to_their_goal)
+            print (f'ball goal ang: {ballGoalAng}')
+            if (time.time() - robot.turn_time > 0.5):
+                robot.turn_time = time.time()
+                if (abs(ballGoalAng) < 15) :
+                    robot.target_orientation = (((robot.bearing_to_ball + robot.orientation)+180) %360) - 180
+                    print("go ball")
+                elif (tgtAbsBearing * ballAbsBearing < 0):
+                    print("x")
+                    #Different Sign, X position incorrect - Travel along X
+                    if (tgtAbsBearing < 0):
+                        robot.target_orientation = -185
+                    else:
+                        robot.target_orientation = 175
+                else:
+                    print("y")
+                    #Same Sign - Travel along Y
+                    ballAbsBearing = ballAbsBearing - 90
+                    print(ballAbsBearing)
+                    if ((ballAbsBearing) < 0):
+                        robot.target_orientation = (-90)
+                    else:
+                        robot.target_orientation = (90)
+
+            #Go to orientation
+            print(f'target orientation: {robot.target_orientation}')
+            robot.orientRobot()
+            
+            
+        elif robot.state == RobotState.TO_GOAL:
+            if abs(robot.bearing_to_their_goal - robot.bearing_to_ball) < ANGLE_RANGE:
+                left = right = robot.MAX_SPEED
+            else:
+                robot.state = RobotState.TO_BALL
+
+
+        #This is an example state for moving towards our goal
+        elif robot.state == RobotState.TO_OUR_GOAL:
+            if robot.distance_to_our_goal < 0.5:
+                robot.state = RobotState.TO_THEIR_GOAL
+            message["set_leds_colour"] = "cyan"
+            if abs(robot.bearing_to_our_goal) < 20:
+                robot.setMove(0.9, 0.9)
+            elif robot.bearing_to_our_goal > 0:
+                robot.setMove(0.65, -0.65)
+            else:
+                robot.setMove(-0.65, 0.65)
+
+        #This is an example state for moving towards their goal
+        elif robot.state == RobotState.TO_THEIR_GOAL:
+            pass
 
         message["set_motor_speeds"] = {}
         message["set_motor_speeds"]["left"] = robot.left
@@ -257,13 +270,6 @@ async def send_commands(robot):
 
 # def set_position(robot):
 
-
-def check_zone(robot):
-    print(robot.progress_through_zone)
-    if (robot.progress_through_zone <= 0 or robot.progress_through_zone >= 1):
-        return True
-
-    return False
 
 
 # Robot class and structures
@@ -281,7 +287,6 @@ class RobotState(Enum):
     TO_OUR_GOAL = 8
     TO_THEIR_GOAL = 9
     TO_GOAL = 10
-    TEST_STATE = 11
 
 # Main Robot class to keep track of robot states
 class Robot:
@@ -302,7 +307,7 @@ class Robot:
         self.bearing_to_ball = 0
         self.distance_to_ball = 0
         #Value between 0 and 1 for your x coordinate in your assigned zone. If < 0 or > 1 you are out of your zone. 1 means furthest from your goal.
-        self.progress_through_zone = 0
+        self.progress_through_zone = 0 
 
         self.bearing_to_our_goal = 0
         self.distance_to_our_goal = 0
@@ -315,14 +320,11 @@ class Robot:
         self.battery_percentage = 0
 
         # These are used by the example behaviour. Feel free to change.
-        self.state = RobotState.TEST_STATE
+        self.state = RobotState.STOP
         self.turn_time = time.time()
         self.regroup_time = time.time()
 
         self.target_orientation = 0
-
-        self.left = 0
-        self.right = 0
 
     #Set the robot's movement
     def setMove(self, right: float, left: float):
@@ -346,39 +348,55 @@ class Robot:
 
     # Check the robot's orientation
     def orientRobot(self):
-        if (abs(self.target_orientation) - 10 < abs(self.orientation) and abs(self.orientation) < abs(self.target_orientation) + 10):
-            # Forwards
-            return self.setMove(1, 1)
-        elif self.orientation * self.target_orientation >= 0:
-            if self.orientation < other_orientation:
-                # RIGHT
-                return self.setMove(1, -0.5, self)
-            else:
-            # LEFT
-                return self.setMove(-0.5, 1, self)
-        elif self.orientation < 0:
-            if abs(self.orientation) + abs(self.target_orientation) < 180:
-                # RIGHT
-                return self.setMove(1, -0.5, self)
-            else:
-                # LEFT
-                return self.setMove(-0.5, 1, self)
+        # if abs(self.target_orientation) + 15 > 180:
+        #     targetRanged = abs(((-180) + self.target_orientation) + 15)
+        # else:
+        #     targetRanged = abs(self.target_orientation) + 15
+        # if (abs(self.target_orientation) - 15 < abs(self.orientation) and (abs(self.orientation) < targetRanged)):
+        #     print("forwards")
+        #     # Forwards
+        #     return self.setMove(1, 1)
+        
+
+        difference = angDiff(self.target_orientation, self.orientation)
+        print(f'dif {difference}')
+        if (abs(difference) < 20):
+            print(f'forwards')
+            print(f'orient dif {difference}')
+            return self.setMove(0.9,0.9)
+        elif (difference > 0):
+            return self.setMove(0.9, -0.7)
         else:
-            if abs(self.orientation) + abs(self.target_orientation) > 180:
-                # RIGHT
-                return self.setMove(1, -0.5, self)
-            else:
-                # LEFT
-                return self.setMove(-0.5, 1, self)
-
-
+            return self.setMove(-0.7, 0.9)
+        
+        # if self.orientation * self.target_orientation >= 0:
+        #     if self.orientation < self.target_orientation:
+        #         # RIGHT
+        #         return self.setMove(0.9, -0.5)
+        #     else:
+        #     # LEFT
+        #         return self.setMove(-0.5, 0.9)
+        # elif self.orientation < 0:
+        #     if abs(self.orientation) + abs(self.target_orientation) < 180:
+        #         # RIGHT
+        #         return self.setMove(0.9, -0.5)
+        #     else:
+        #         # LEFT
+        #         return self.setMove(-0.5, 0.9)
+        # else:
+        #     if abs(self.orientation) + abs(self.target_orientation) > 180:
+        #         # RIGHT
+        #         return self.setMove(0.9, -0.5)
+        #     else:
+        #         # LEFT
+        #         return self.setMove(-0.5, 0.9)
 
 #-----------------------------------------------------------------
 # You probably don't need to change anything below here
 #-----------------------------------------------------------------
 
 
-active_robots = {}
+active_robots = {} 
 ids = []
 
 
@@ -519,7 +537,6 @@ async def get_server_data():
         ids = list(filtered_reply.keys())
 
         #pprint.PrettyPrinter(indent=4).pprint(reply)
-        #pprint.PrettyPrinter(indent=4).pprint(reply)
         #print(f"active_robots.keys() = {active_robots.keys()}")
         #print(f"filtered_reply = {filtered_reply}")
         #print(f"ids = {ids}")
@@ -533,13 +550,13 @@ async def get_server_data():
             active_robots[id].remaining_time = robot["remaining_time"]
             active_robots[id].neighbours = robot["players"]
             active_robots[id].bearing_to_ball = robot["ball"]["bearing"]
-            active_robots[id].distance_to_ball = robot["ball"]["range"]
-            active_robots[id].progress_through_zone = robot["progress_through_zone"]
+            active_robots[id].distance_to_ball = robot["ball"]["range"]   
+            active_robots[id].progress_through_zone = robot["progress_through_zone"]   
             active_robots[id].bearing_to_our_goal = robot["our_goal"]["bearing"]
             active_robots[id].distance_to_our_goal = robot["our_goal"]["range"]
             active_robots[id].bearing_to_their_goal = robot["their_goal"]["bearing"]
             active_robots[id].distance_to_their_goal = robot["their_goal"]["range"]
-
+            
 
     except Exception as e:
         print(f"get_server_data: {type(e).__name__}: {e}")
