@@ -34,7 +34,7 @@ function should be declared with "async" (see the simple_obstacle_avoidance() ex
 main_loop() using loop.run_until_complete(async_thing_to_run(ids))
 """
 
-robot_ids = [32, 33] #,32, 38]
+robot_ids = [33] #,32, 38]
 ANGLE_RANGE = 0.5
 
 def angDiff(ang1: float, ang2: float):
@@ -134,38 +134,11 @@ async def send_commands(robot):
         vector_to_travel = Vector2D.to_polar(Vector2D.__neg__(their_goal_vector - ball_vector))
         print(robot.bearing_to_ball)
 
-        if robot.state == RobotState.FORWARDS:
-            robot.setMove(1,1)
-            if (time.time() - robot.turn_time > 0.5) and any(ir > 80 for ir in robot.ir_readings):
-                robot.turn_time = time.time()
-                robot.state = random.choice((RobotState.LEFT, RobotState.RIGHT))
-            robot.state = RobotState.TO_BALL # used to automatically make the robot go towards the goal
-
-        elif robot.state == RobotState.BACKWARDS:
-            #left = right = -robot.MAX_SPEED
-            robot.setMove(-0.7, -0.7)
-            robot.turn_time = time.time() #Note when we started turning
-            robot.state = RobotState.FORWARDS
-
-        elif robot.state == RobotState.LEFT:
-            robot.setMove(-0.9, 1)
-            if time.time() - robot.turn_time > random.uniform(0.5, 1.0): #Ensure we've been turning for some amount of time
-                robot.turn_time = time.time()
-                robot.state = RobotState.FORWARDS
-
-        elif robot.state == RobotState.RIGHT:
-            robot.setMove(1, -0.9)
-            left = robot.MAX_SPEED
-            right = -robot.MAX_SPEED
-            if time.time() - robot.turn_time > random.uniform(0.5, 1.0):
-                robot.turn_time = time.time()
-                robot.state = RobotState.FORWARDS
-
         #Robots are created in the STOP state
-        elif robot.state == RobotState.STOP:
+        if robot.state == RobotState.STOP:
             left = right = 0
             robot.turn_time = time.time()
-            robot.state = RobotState.FORWARDS
+            robot.state = RobotState.TO_BALL
 
         elif robot.state == RobotState.ZONEEDGE:
             robot.left = robot.right = 0
@@ -226,11 +199,22 @@ async def send_commands(robot):
             robot.turn_time = time.time()
             check_zone(robot)
             if (abs(ballGoalAng) < 15) :
+            closest_range = 100
+            closest_bot = {}
+            for neighbour_id, bot in robot.neighbours.items():
+                if (bot["range"] < closest_range) and (bot["team"] != robot.team):
+                    closest_bot = bot
+                    closest_range = bot["range"]
+            if (abs(ballGoalAng) < 10) or (any(ir > 80 for ir in robot.ir_readings) and robot.distance_to_ball > 0.1):
                 robot.target_orientation = (((robot.bearing_to_ball + robot.orientation)+180) %360) - 180
                 print("go ball")
             elif not ((tgtAbsBearing > 180 and ballAbsBearing >180) or (tgtAbsBearing < 180 and ballAbsBearing < 180)):
                 print("x")
                 #Same Sign, X position incorrect - Travel along X
+                if robot.team == 'BLUE':
+                    robot.target_orientation = (180)
+                else:
+                    robot.target_orientation = (0)
                 #if (tgtAbsBearing < 0):
                 robot.target_orientation = antiTgtAbsBearing
                 #else:
@@ -238,40 +222,22 @@ async def send_commands(robot):
             else:
                 print("y")
                 #Same Sign - Travel along Y
-                ballAbsBearing = angRangeLimit(ballAbsBearing)
+                ballAbsBearing = (ballAbsBearing - 90) % 360
                 print(f'ballabs {ballAbsBearing}')
-                if ((ballAbsBearing) < 0):
-                    robot.target_orientation = (90)
+                if ((ballGoalAng) < 0):
+                    if robot.team == 'BLUE':
+                        robot.target_orientation = (-90)
+                    else:
+                        robot.target_orientation = (90)
                 else:
-                    robot.target_orientation = (-90)
+                    if robot.team == 'BLUE':
+                        robot.target_orientation = (90)
+                    else:
+                        robot.target_orientation = (-90)
 
             #Go to orientation
             print(f'target orientation: {robot.target_orientation}')
             robot.orientRobot()
-            
-            
-        elif robot.state == RobotState.TO_GOAL:
-            if abs(robot.bearing_to_their_goal - robot.bearing_to_ball) < ANGLE_RANGE:
-                left = right = robot.MAX_SPEED
-            else:
-                robot.state = RobotState.TO_BALL
-
-
-        #This is an example state for moving towards our goal
-        elif robot.state == RobotState.TO_OUR_GOAL:
-            if robot.distance_to_our_goal < 0.5:
-                robot.state = RobotState.TO_THEIR_GOAL
-            message["set_leds_colour"] = "cyan"
-            if abs(robot.bearing_to_our_goal) < 20:
-                robot.setMove(0.9, 0.9)
-            elif robot.bearing_to_our_goal > 0:
-                robot.setMove(0.65, -0.65)
-            else:
-                robot.setMove(-0.65, 0.65)
-
-        #This is an example state for moving towards their goal
-        elif robot.state == RobotState.TO_THEIR_GOAL:
-            pass
 
         message["set_motor_speeds"] = {}
         message["set_motor_speeds"]["left"] = robot.left
@@ -318,6 +284,9 @@ class Robot:
         self.id = robot_id
         self.connection = None
         self.tasks = {}
+
+        self.left = 0.6
+        self.right = 0.6
 
         self.orientation = 0 # Our orientation from "up". 0 to 359
         self.neighbours = {} # All other robots in the area (see format, above)
@@ -378,14 +347,15 @@ class Robot:
         #     return self.setMove(1, 1)
         difference = angDiff(self.target_orientation, self.orientation)
         print(f'dif {difference}')
-        if (abs(difference) < 20):
+        if (abs(difference) < 0):
             print(f'forwards')
             print(f'orient dif {difference}')
             return self.setMove(0.9,0.9)
         elif (difference > 0):
-            return self.setMove(0.9, -0.7)
+            return self.setMove(0.9, max((2-(abs(difference)/45)) - 1, -0.9))
         else:
-            return self.setMove(-0.7, 0.9)
+            return self.setMove(max((2-(abs(difference)/45)) - 1, -0.9), 0.9)
+
         
         # if self.orientation * self.target_orientation >= 0:
         #     if self.orientation < self.target_orientation:
