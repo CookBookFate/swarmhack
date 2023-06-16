@@ -34,7 +34,7 @@ function should be declared with "async" (see the simple_obstacle_avoidance() ex
 main_loop() using loop.run_until_complete(async_thing_to_run(ids))
 """
 
-robot_ids = [35] #,32, 38]
+robot_ids = [34 ,39, 40]
 ANGLE_RANGE = 0.5
 
 def angDiff(ang1: float, ang2: float):
@@ -210,24 +210,14 @@ async def send_commands(robot):
                 if (bot["range"] < closest_range) and (bot["team"] != robot.team):
                     closest_bot = bot
                     closest_range = bot["range"]
-            
             if (abs(ballGoalAng) < 10):
-                robot.target_orientation = (((robot.bearing_to_ball + robot.orientation + random.randrange(-5, 5))+180) %360) - 180
+                robot.target_orientation = (((robot.bearing_to_ball + robot.orientation + random.randrange(-30, 30, 10))+180) %360) - 180
                 print("go ball")
-            elif  (any(ir > 50 for ir in robot.ir_readings) and robot.distance_to_ball > 0.1):
-                if robot.ir_readings[0] > 50 or robot.ir_readings[1] > 50 or robot.ir_readings[2] > 50 :
-                    robot.target_orientation += -90
-                elif robot.ir_readings[4] > 50 or robot.ir_readings[3] > 50:
-                    robot.target_orientation += 90
+            
             elif not ((tgtAbsBearing > 180 and ballAbsBearing >180) or (tgtAbsBearing < 180 and ballAbsBearing < 180)):
                 print("x")
                 #Same Sign, X position incorrect - Travel along X
-                if robot.team == 'BLUE':
-                    robot.target_orientation = (0 + random.randrange(-10, 10, 1))
-                else:
-                    robot.target_orientation = (180 + random.randrange(-10, 10, 1))
-                #if (tgtAbsBearing < 0):
-                #robot.target_orientation = antiTgtAbsBearing
+                robot.target_orientation = tgtAbsBearing + 180 + random.randrange(-30, 30, 10)
                 #else:
                 #    robot.target_orientation = 175
             else:
@@ -237,14 +227,23 @@ async def send_commands(robot):
                 print(f'ballabs {ballAbsBearing}')
                 if ((ballGoalAng) < 0):
                     if robot.team == 'BLUE':
-                        robot.target_orientation = (-90 + random.randrange(-10, 10, 1))
+                        robot.target_orientation = (-90 + random.randrange(-10, 10, 5))
                     else:
-                        robot.target_orientation = (90 + random.randrange(-10, 10, 1))
+                        robot.target_orientation = (90 + random.randrange(-10, 10, 5))
                 else:
                     if robot.team == 'BLUE':
-                        robot.target_orientation = (90 + random.randrange(-10, 10, 1))
+                        robot.target_orientation = (90 + random.randrange(-10, 10, 5))
                     else:
-                        robot.target_orientation = (-90 + random.randrange(-10, 10, 1))
+                        robot.target_orientation = (-90 + random.randrange(-10, 10, 5))
+            # Avoid
+            if  (any(ir > 50 for ir in robot.ir_readings) and robot.distance_to_ball > 0.12) \
+                or (robot.progress_through_zone > 0.9 or robot.progress_through_zone < 0.1) :
+                if robot.ir_readings[0] > 50 or robot.ir_readings[1] > 50 or robot.ir_readings[2] > 50 :
+                    robot.target_orientation += 25
+                elif robot.ir_readings[4] > 50 or robot.ir_readings[3] > 50:
+                    robot.target_orientation += -25
+                else:
+                    robot.target_orientation += 90
 
             #Go to orientation
             print(f'target orientation: {robot.target_orientation}')
@@ -353,7 +352,7 @@ class Robot:
         #     # Forwards
         #     return self.setMove(1, 1)
         difference = angDiff(self.target_orientation, self.orientation)
-        print(f'dif {difference}')
+        print(f'target:{self.target_orientation} current:{self.orientation} dif {difference}')
         if (abs(difference) < 0):
             print(f'forwards')
             print(f'orient dif {difference}')
