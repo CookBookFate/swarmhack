@@ -34,7 +34,7 @@ function should be declared with "async" (see the simple_obstacle_avoidance() ex
 main_loop() using loop.run_until_complete(async_thing_to_run(ids))
 """
 
-robot_ids = [32] #,32, 38]
+robot_ids = [32, 33] #,32, 38]
 ANGLE_RANGE = 0.5
 
 def angDiff(ang1: float, ang2: float):
@@ -167,6 +167,9 @@ async def send_commands(robot):
             robot.turn_time = time.time()
             robot.state = RobotState.FORWARDS
 
+        elif robot.state == RobotState.ZONEEDGE:
+            robot.left = robot.right = 0
+
         #In the regroup state, they try to group back together
         #This is an example of using the robot.neighbours map to set our target direction based on where other robots are.
         #It will get vectors to all other robots, average the direction, and so move the "middle" of the swarm
@@ -202,26 +205,26 @@ async def send_commands(robot):
             message["set_leds_colour"] = "yellow"
             # Get bearings shifted into 0-360 range
             antiTgtBearing = (robot.bearing_to_our_goal+180)%360
-            tgtBearing = (robot.bearing_to_their_goal + 180)%360 
+            tgtBearing = (robot.bearing_to_their_goal + 180)%360
             ballBearing = (robot.bearing_to_ball+180)%360
             orientationBearing = ((robot.orientation+180)%360)
             #Get bearings adjusted to global zero, shifted to range where sides have same sign
             tgtAbsBearing = (tgtBearing + orientationBearing - 90)%360
             antiTgtAbsBearing = (antiTgtBearing + orientationBearing)%360
             ballAbsBearing = (ballBearing + orientationBearing - 90)%360
-            
+
             tgtBearingShft = angRangeLimit(tgtAbsBearing - 90) #Shift for X
             ballBearingShft = angRangeLimit(ballAbsBearing - 90)
-            
+
             print(f'tgtAbs {tgtAbsBearing} ballAbs {ballAbsBearing} | ball {ballBearing} tgt {tgtBearing} | our goal {antiTgtBearing} | our goal abs {antiTgtAbsBearing}')
             print(f'dist ball: {robot.distance_to_ball}')
             print(f'ball shft ang: {ballBearingShft}')
             print(f'goal shft ang {tgtBearingShft}')
-            
+
             ballGoalAng = angDiff(robot.bearing_to_ball, robot.bearing_to_their_goal)
             print (f'ball goal ang: {ballGoalAng}')
             robot.turn_time = time.time()
-            
+            check_zone(robot)
             if (abs(ballGoalAng) < 15) :
                 robot.target_orientation = (((robot.bearing_to_ball + robot.orientation)+180) %360) - 180
                 print("go ball")
@@ -283,7 +286,10 @@ async def send_commands(robot):
 
 # def set_position(robot):
 
-
+def check_zone(robot):
+    print(robot.progress_through_zone)
+    if (robot.progress_through_zone <= 0 or robot.progress_through_zone >= 1):
+        robot.state = RobotState.ZONEEDGE
 
 # Robot class and structures
 #----------------------------
@@ -300,6 +306,7 @@ class RobotState(Enum):
     TO_OUR_GOAL = 8
     TO_THEIR_GOAL = 9
     TO_GOAL = 10
+    ZONEEDGE = 11
 
 # Main Robot class to keep track of robot states
 class Robot:
