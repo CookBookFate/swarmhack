@@ -169,6 +169,16 @@ async def send_commands(robot):
             robot.turn_time = time.time()
             robot.state = RobotState.FORWARDS
 
+        elif robot.state == RobotState.ZONEEDGE:
+            if robot.orientation < 90:
+                left = -50
+                right = 50
+            elif robot.orientation > 90:
+                left = 50
+                right = -50
+            else:
+                left = right = 0
+
         #In the regroup state, they try to group back together
         #This is an example of using the robot.neighbours map to set our target direction based on where other robots are.
         #It will get vectors to all other robots, average the direction, and so move the "middle" of the swarm
@@ -220,6 +230,7 @@ async def send_commands(robot):
             ballGoalAng = angDiff(robot.bearing_to_ball, robot.bearing_to_their_goal)
             print (f'ball goal ang: {ballGoalAng}')
             robot.turn_time = time.time()
+            check_zone(robot)
             
             if (abs(ballGoalAng) < 15) :
                 robot.target_orientation = (((robot.bearing_to_ball + robot.orientation)+180) %360) - 180
@@ -282,7 +293,10 @@ async def send_commands(robot):
 
 # def set_position(robot):
 
-
+def check_zone(robot):
+    print(robot.progress_through_zone)
+    if (robot.progress_through_zone <= 0 or robot.progress_through_zone >= 1):
+        robot.state = RobotState.ZONEEDGE
 
 # Robot class and structures
 #----------------------------
@@ -299,6 +313,7 @@ class RobotState(Enum):
     TO_OUR_GOAL = 8
     TO_THEIR_GOAL = 9
     TO_GOAL = 10
+    ZONEEDGE = 11
 
 # Main Robot class to keep track of robot states
 class Robot:
