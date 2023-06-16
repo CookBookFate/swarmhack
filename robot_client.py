@@ -368,8 +368,6 @@ class Robot:
         #     print("forwards")
         #     # Forwards
         #     return self.setMove(1, 1)
-        
-
         difference = angDiff(self.target_orientation, self.orientation)
         print(f'dif {difference}')
         if (abs(difference) < 20):
