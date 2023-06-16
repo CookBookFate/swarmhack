@@ -199,7 +199,7 @@ async def send_commands(robot):
             robot.turn_time = time.time()
             check_zone(robot)
             if (abs(ballGoalAng) < 15) :
-            closest_range = 100
+                closest_range = 100
             closest_bot = {}
             for neighbour_id, bot in robot.neighbours.items():
                 if (bot["range"] < closest_range) and (bot["team"] != robot.team):
