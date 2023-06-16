@@ -34,8 +34,8 @@ function should be declared with "async" (see the simple_obstacle_avoidance() ex
 main_loop() using loop.run_until_complete(async_thing_to_run(ids))
 """
 
-robot_ids = [37] #,32, 38]
-ANGLE_RANGE = 0.5
+robot_ids = [39]
+
 
 def main_loop():
     # This requests all virtual sensor data from the tracking server for the robots specified in robot_ids
@@ -60,12 +60,13 @@ def main_loop():
     time.sleep(0.1)
 
 
-
 """
 This is an example of a behaviour. You will want to replace this with a behaviour that implements your team
 movements. It currently is an example of basic object avoidance.
 This function is called for each robot that we listed in robot_ids that we are interested in.
 """
+
+
 async def send_commands(robot):
     print(f"Commanding robot {robot.id}: Team {robot.team}, Role {robot.role}, Orientation {robot.orientation}, State {robot.state}")
 
@@ -115,159 +116,143 @@ async def send_commands(robot):
         detects something in front of it, when it will turn instead.
         Then every 5 seconds it attempts to regroup the robots by turning them towards the average bearing of all other robots.
         """
-        # left = 0
-        # right = 0
-        their_goal_vector = Vector2D.from_polar(robot.bearing_to_their_goal, robot.distance_to_their_goal)
-        ball_vector = Vector2D.from_polar(robot.bearing_to_ball, robot.distance_to_ball)
-        #print(ball_vector)
-        #print(their_goal_vector)
-        vector_to_travel = Vector2D.to_polar(Vector2D.__neg__(their_goal_vector - ball_vector))
-        # print(robot.bearing_to_ball)
-
         if robot.state == RobotState.TEST_STATE:
             print(robot.orientation)
             left = right = robot.MAX_SPEED
-            # if robot.orientation < 0:
-                # left = 0
-                # right = robot.MAX_SPEED
-            #else:
-                #left = robot.MAX_SPEED
-                #right = 0
+            check_zone(robot)
+            if robot.orientation < 0:
+                left = 0
+                right = robot.MAX_SPEED
+            else:
+                left = robot.MAX_SPEED
+                right = 0
 
-        # if robot.state == RobotState.FORWARDS:
-        #     robot.setMove(1,1)
-        #     if (time.time() - robot.turn_time > 0.5) and any(ir > 80 for ir in robot.ir_readings):
-        #         robot.turn_time = time.time()
-        #         robot.state = random.choice((RobotState.LEFT, RobotState.RIGHT))
-        #     stop = check_zone(robot)
-        #     if (stop):
-        #         left = right = 0   # how do I make it stop!
-        #     else:
-        #         robot.state = RobotState.TO_BALL # used to automatically make the robot go towards the goal
-        #
-        # elif robot.state == RobotState.BACKWARDS:
-        #     #left = right = -robot.MAX_SPEED
-        #     robot.setMove(-0.7, -0.7)
-        #     robot.turn_time = time.time() #Note when we started turning
-        #     stop = check_zone(robot)
-        #     if stop:
-        #         left = right = 0
-        #     else:
-        #         robot.state = RobotState.FORWARDS
-        #
-        # elif robot.state == RobotState.LEFT:
-        #     robot.setMove(-0.9, 1)
-        #     if time.time() - robot.turn_time > random.uniform(0.5, 1.0): #Ensure we've been turning for some amount of time
-        #         robot.turn_time = time.time()
-        #         stop = check_zone(robot)
-        #         if (stop):
-        #             left = right = 0
-        #         else:
-        #             robot.state = RobotState.FORWARDS
-        #
-        # elif robot.state == RobotState.RIGHT:
-        #     robot.setMove(1, -0.9)
-        #     left = robot.MAX_SPEED
-        #     right = -robot.MAX_SPEED
-        #     if time.time() - robot.turn_time > random.uniform(0.5, 1.0):
-        #         robot.turn_time = time.time()
-        #         stop = check_zone(robot)
-        #         if (stop):
-        #             left = right = 0
-        #         else:
-        #             robot.state = RobotState.FORWARDS
-        #
-        # #Robots are created in the STOP state
-        # elif robot.state == RobotState.STOP:
-        #     left = right = 0
-        #     robot.turn_time = time.time()
-        #     robot.state = RobotState.FORWARDS
-        #
-        # #In the regroup state, they try to group back together
-        # #This is an example of using the robot.neighbours map to set our target direction based on where other robots are.
-        # #It will get vectors to all other robots, average the direction, and so move the "middle" of the swarm
-        # elif robot.state == RobotState.REGROUP:
-        #     message["set_leds_colour"] = "green"
-        #
-        #     target_direction = Vector2D(0, 0) #Create a zero vector to work with
-        #     for neighbour_id, neighbour in robot.neighbours.items(): #For every other robot (you probably want to filter this by team/role)
-        #
-        #         vector_to_neighbour = Vector2D(neighbour["range"] * math.cos(math.radians(neighbour["bearing"])),
-        #                                        neighbour["range"] * math.sin(math.radians(neighbour["bearing"])))
-        #
-        #         target_direction += vector_to_neighbour #Add up all the neighbour vectors
-        #     target_direction /= len(robot.neighbours) #Average them
-        #
-        #     direction_polar = target_direction.to_polar() #By getting a polar vector, we get the target bearing
-        #     #But that bearing is in radians, so we convert to degrees that are normalised to between 180 and -180, like this:
-        #     heading = angles.normalize(math.degrees(direction_polar[1]), -180, 180)
-        #
-        #     #Turn left or right based on the resulting angle
-        #     if heading > 0:
-        #         left = robot.MAX_SPEED
-        #         right = 0
-        #     else:
-        #         left = 0
-        #         right = robot.MAX_SPEED
-        #     if time.time() - robot.regroup_time > random.uniform(3.0, 4.0): #Back into the FORWARDS state after a delay
-        #         message["set_leds_colour"] = "red"
-        #         robot.state = RobotState.FORWARDS
-        #
-        # #This is an example state for moving towards the ball
-        # elif robot.state == RobotState.TO_BALL:
-        #     message["set_leds_colour"] = "yellow"
-        #     stop = check_zone(robot)
-        #     if robot.orientation > 0:
-        #         left = robot.MAX_SPEED
-        #         right = 0
-        #     else:
-        #         left = 0
-        #         right = robot.MAX_SPEED
-        #     if (stop):
-        #         left = right = 0
-        #     else:
-        #         robot.state = RobotState.TO_BALL
-        #
-        # #This is an example state for moving towards our goal
-        # elif robot.state == RobotState.TO_OUR_GOAL:
-        #     if robot.distance_to_our_goal < 0.5:
-        #         robot.state = RobotState.TO_THEIR_GOAL
-        #     message["set_leds_colour"] = "cyan"
-        #     if abs(robot.bearing_to_our_goal) < 20:
-        #         robot.setMove(0.9, 0.9)
-        #     elif robot.bearing_to_our_goal > 0:
-        #         robot.setMove(0.65, -0.65)
-        #     else:
-        #         robot.setMove(-0.65, 0.65)
-        #
-        # #This is an example state for moving towards their goal
-        # elif robot.state == RobotState.TO_THEIR_GOAL:
-        #     check_zone()
+        if robot.state == RobotState.FORWARDS:
+            left = right = robot.MAX_SPEED
+            if (time.time() - robot.turn_time > 0.5) and any(ir > 80 for ir in robot.ir_readings):
+                robot.turn_time = time.time()
+                robot.state = random.choice((RobotState.LEFT, RobotState.RIGHT))
+            elif (time.time() - robot.regroup_time > 5):  # Every 5 seconds, go into the "regroup" state
+                robot.regroup_time = time.time()
+                robot.state = RobotState.REGROUP
+
+        elif robot.state == RobotState.BACKWARDS:
+            left = right = -robot.MAX_SPEED
+            robot.turn_time = time.time()  # Note when we started turning
+            robot.state = RobotState.FORWARDS
+
+        elif robot.state == RobotState.LEFT:
+            left = -robot.MAX_SPEED
+            right = robot.MAX_SPEED
+            if time.time() - robot.turn_time > random.uniform(0.5,
+                                                              1.0):  # Ensure we've been turning for some amount of time
+                robot.turn_time = time.time()
+                robot.state = RobotState.FORWARDS
+
+        elif robot.state == RobotState.RIGHT:
+            left = robot.MAX_SPEED
+            right = -robot.MAX_SPEED
+            if time.time() - robot.turn_time > random.uniform(0.5, 1.0):
+                robot.turn_time = time.time()
+                robot.state = RobotState.FORWARDS
+
+        # Robots are created in the STOP state
+        elif robot.state == RobotState.STOP:
+            left = right = 0
+            robot.turn_time = time.time()
+
+        # In the regroup state, they try to group back together
+        # This is an example of using the robot.neighbours map to set our target direction based on where other robots are.
+        # It will get vectors to all other robots, average the direction, and so move the "middle" of the swarm
+        elif robot.state == RobotState.REGROUP:
+            message["set_leds_colour"] = "green"
+
+            target_direction = Vector2D(0, 0)  # Create a zero vector to work with
+            for neighbour_id, neighbour in robot.neighbours.items():  # For every other robot (you probably want to filter this by team/role)
+
+                vector_to_neighbour = Vector2D(neighbour["range"] * math.cos(math.radians(neighbour["bearing"])),
+                                               neighbour["range"] * math.sin(math.radians(neighbour["bearing"])))
+
+                target_direction += vector_to_neighbour  # Add up all the neighbour vectors
+            target_direction /= len(robot.neighbours)  # Average them
+
+            direction_polar = target_direction.to_polar()  # By getting a polar vector, we get the target bearing
+            # But that bearing is in radians, so we convert to degrees that are normalised to between 180 and -180, like this:
+            heading = angles.normalize(math.degrees(direction_polar[1]), -180, 180)
+
+            # Turn left or right based on the resulting angle
+            if heading > 0:
+                left = robot.MAX_SPEED
+                right = 0
+            else:
+                left = 0
+                right = robot.MAX_SPEED
+            if time.time() - robot.regroup_time > random.uniform(3.0,
+                                                                 4.0):  # Back into the FORWARDS state after a delay
+                message["set_leds_colour"] = "red"
+                robot.state = RobotState.FORWARDS
+
+        # This is an example state for moving towards the ball
+        elif robot.state == RobotState.TO_BALL:
+            message["set_leds_colour"] = "yellow"
+            if robot.distance_to_ball < 0.1:
+                robot.state = RobotState.TO_OUR_GOAL
+            if abs(robot.bearing_to_ball) < 20:
+                left = right = robot.MAX_SPEED
+            elif robot.bearing_to_ball > 0:
+                left = int(float(robot.MAX_SPEED) / 1.4)  # If we do a "full speed turn" then they overshoot.
+                right = -int(float(
+                    robot.MAX_SPEED) / 1.4)  # A good implementation would turn at a speed based on how misalaigned they are
+            else:
+                left = -int(float(robot.MAX_SPEED) / 1.4)
+                right = int(float(robot.MAX_SPEED) / 1.4)
+
+        # This is an example state for moving towards our goal
+        elif robot.state == RobotState.TO_OUR_GOAL:
+            if robot.distance_to_our_goal < 0.2:
+                robot.state = RobotState.TO_THEIR_GOAL
+            message["set_leds_colour"] = "cyan"
+            if abs(robot.bearing_to_our_goal) < 20:
+                left = right = robot.MAX_SPEED
+            elif robot.bearing_to_our_goal > 0:
+                left = int(float(robot.MAX_SPEED) / 1.4)
+                right = -int(float(robot.MAX_SPEED) / 1.4)
+            else:
+                left = -int(float(robot.MAX_SPEED) / 1.4)
+                right = int(float(robot.MAX_SPEED) / 1.4)
+
+        # This is an example state for moving towards their goal
+        elif robot.state == RobotState.TO_THEIR_GOAL:
+            if robot.distance_to_their_goal < 0.2:
+                robot.state = RobotState.TO_BALL
+            message["set_leds_colour"] = "magenta"
+            if abs(robot.bearing_to_their_goal) < 20:
+                left = right = robot.MAX_SPEED
+            elif robot.bearing_to_their_goal > 0:
+                left = int(float(robot.MAX_SPEED) / 1.4)
+                right = -int(float(robot.MAX_SPEED) / 1.4)
+            else:
+                left = -int(float(robot.MAX_SPEED) / 1.4)
+                right = int(float(robot.MAX_SPEED) / 1.4)
+
 
         message["set_motor_speeds"] = {}
-        message["set_motor_speeds"]["left"] = robot.left
-        message["set_motor_speeds"]["right"] = robot.right
+        message["set_motor_speeds"]["left"] = left
+        message["set_motor_speeds"]["right"] = right
 
         # Send command message
         await robot.connection.send(json.dumps(message))
-        print(json.dumps(message))
 
     except Exception as e:
         print(f"send_commands: {type(e).__name__}: {e}")
-
-# def set_position(robot):
-
-
 def check_zone(robot):
-    print(robot.progress_through_zone)
-    if (robot.progress_through_zone <= 0 or robot.progress_through_zone >= 1):
-        return True
-
-    return False
+        print(robot.progress_through_zone)
+        if (robot.progress_through_zone <= 0 or robot.progress_through_zone >= 1):
+            robot.state = RobotState.STOP
 
 
 # Robot class and structures
-#----------------------------
+# ----------------------------
 
 # Robot states to use in the example controller. Feel free to change.
 class RobotState(Enum):
@@ -280,8 +265,8 @@ class RobotState(Enum):
     TO_BALL = 7
     TO_OUR_GOAL = 8
     TO_THEIR_GOAL = 9
-    TO_GOAL = 10
-    TEST_STATE = 11
+    TEST_STATE = 10
+
 
 # Main Robot class to keep track of robot states
 class Robot:
@@ -294,14 +279,14 @@ class Robot:
         self.connection = None
         self.tasks = {}
 
-        self.orientation = 0 # Our orientation from "up". 0 to 359
-        self.neighbours = {} # All other robots in the area (see format, above)
-        self.role = 'NOMAD' # Will be NOMAD, DEFENDER, MID_FIELD, STRIKER
-        self.team = 'UNASSIGNED' # Will be UNASSIGNED, RED, BLUE
-        self.remaining_time = 0 # Number of seconds left in the match
+        self.orientation = 0  # Our orientation from "EAST". 180 to -180, with positive being clockwise.
+        self.neighbours = {}  # All other robots in the area (see format, above)
+        self.role = 'NOMAD'  # Will be NOMAD, DEFENDER, MID_FIELD, STRIKER
+        self.team = 'UNASSIGNED'  # Will be UNASSIGNED, RED, BLUE
+        self.remaining_time = 0  # Number of seconds left in the match
         self.bearing_to_ball = 0
         self.distance_to_ball = 0
-        #Value between 0 and 1 for your x coordinate in your assigned zone. If < 0 or > 1 you are out of your zone. 1 means furthest from your goal.
+        # Value between 0 and 1 for your x coordinate in your assigned zone. If < 0 or > 1 you are out of your zone. 1 means furthest from your goal.
         self.progress_through_zone = 0
 
         self.bearing_to_our_goal = 0
@@ -319,71 +304,17 @@ class Robot:
         self.turn_time = time.time()
         self.regroup_time = time.time()
 
-        self.target_orientation = 0
 
-        self.left = 0
-        self.right = 0
-
-    #Set the robot's movement
-    def setMove(self, right: float, left: float):
-        if (left > 1) or (right > 1):
-            return self
-        #if left > right:
-        #    self.state = RobotState.LEFT
-        #elif left < right:
-        #    self.state = RobotState.RIGHT
-        #elif (left == right) and ((left + right) > 0):
-        #    self.state = RobotState.FORWARDS
-        #elif (left == right) and ((left + right) < 0):
-        #    self.state = RobotState.BACKWARDS
-        #elif (left + right) == 0:
-        #    self.state = RobotState.STOP
-        #    # robot.left = 0
-        self.left = left * self.MAX_SPEED
-        # robot.right = 0
-        self.right = right * self.MAX_SPEED
-        return self
-
-    # Check the robot's orientation
-    def orientRobot(self):
-        if (abs(self.target_orientation) - 10 < abs(self.orientation) and abs(self.orientation) < abs(self.target_orientation) + 10):
-            # Forwards
-            return self.setMove(1, 1)
-        elif self.orientation * self.target_orientation >= 0:
-            if self.orientation < other_orientation:
-                # RIGHT
-                return self.setMove(1, -0.5, self)
-            else:
-            # LEFT
-                return self.setMove(-0.5, 1, self)
-        elif self.orientation < 0:
-            if abs(self.orientation) + abs(self.target_orientation) < 180:
-                # RIGHT
-                return self.setMove(1, -0.5, self)
-            else:
-                # LEFT
-                return self.setMove(-0.5, 1, self)
-        else:
-            if abs(self.orientation) + abs(self.target_orientation) > 180:
-                # RIGHT
-                return self.setMove(1, -0.5, self)
-            else:
-                # LEFT
-                return self.setMove(-0.5, 1, self)
-
-
-
-#-----------------------------------------------------------------
+# -----------------------------------------------------------------
 # You probably don't need to change anything below here
-#-----------------------------------------------------------------
+# -----------------------------------------------------------------
 
 
 active_robots = {}
 ids = []
 
-
 # Server address, port details, globals
-#---------------------------------------
+# ---------------------------------------
 server_address = server_york
 server_port = 6000
 robot_port = 6000
@@ -395,22 +326,24 @@ if len(server_address) == 0:
 server_connection = None
 colorama.init(autoreset=True)
 
-
 # Handle Ctrl+C termination
 # https://stackoverflow.com/questions/2148888/python-trap-all-signals
-#---------------------------------------------------------------------
+# ---------------------------------------------------------------------
 SIGNALS_TO_NAMES_DICT = dict((getattr(signal, n), n) \
-    for n in dir(signal) if n.startswith('SIG') and '_' not in n)
+                             for n in dir(signal) if n.startswith('SIG') and '_' not in n)
 # https://github.com/aaugustin/websockets/issues/124
 __kill_now = False
+
 
 def __set_kill_now(signum, frame):
     print('\nReceived signal:', SIGNALS_TO_NAMES_DICT[signum], str(signum))
     global __kill_now
     __kill_now = True
 
+
 signal.signal(signal.SIGINT, __set_kill_now)
 signal.signal(signal.SIGTERM, __set_kill_now)
+
 
 def kill_now() -> bool:
     global __kill_now
@@ -518,15 +451,14 @@ async def get_server_data():
         filtered_reply = {int(k): v for (k, v) in reply.items() if int(k) in active_robots.keys()}
         ids = list(filtered_reply.keys())
 
-        #pprint.PrettyPrinter(indent=4).pprint(reply)
-        #pprint.PrettyPrinter(indent=4).pprint(reply)
-        #print(f"active_robots.keys() = {active_robots.keys()}")
-        #print(f"filtered_reply = {filtered_reply}")
-        #print(f"ids = {ids}")
+        # pprint.PrettyPrinter(indent=4).pprint(reply)
+        # print(f"active_robots.keys() = {active_robots.keys()}")
+        # print(f"filtered_reply = {filtered_reply}")
+        # print(f"ids = {ids}")
 
         # Receive robot virtual sensor data from the server
         for id, robot in filtered_reply.items():
-            #print(f"Updating robot {id}")
+            # print(f"Updating robot {id}")
             active_robots[id].orientation = robot["orientation"]
             active_robots[id].role = robot["role"]
             active_robots[id].team = robot["team"]
@@ -576,7 +508,6 @@ async def get_data(robot):
 
     except Exception as e:
         print(f"{type(e).__name__}: {e}")
-
 
 
 # Main entry point for robot control client sample code
