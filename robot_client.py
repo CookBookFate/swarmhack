@@ -34,7 +34,7 @@ function should be declared with "async" (see the simple_obstacle_avoidance() ex
 main_loop() using loop.run_until_complete(async_thing_to_run(ids))
 """
 
-robot_ids = [33] #,32, 38]
+robot_ids = [32] #,32, 38]
 ANGLE_RANGE = 0.5
 
 def angDiff(ang1: float, ang2: float):
@@ -141,7 +141,10 @@ async def send_commands(robot):
             robot.state = RobotState.TO_BALL
 
         elif robot.state == RobotState.ZONEEDGE:
-            robot.left = robot.right = 0
+            if robot.role == 'DEFENDER':
+                robot.state = RobotState.TO_OUR_GOAL
+            else:
+                robot.left = robot.right = 0
 
         #In the regroup state, they try to group back together
         #This is an example of using the robot.neighbours map to set our target direction based on where other robots are.
@@ -172,6 +175,20 @@ async def send_commands(robot):
             if time.time() - robot.regroup_time > random.uniform(3.0, 4.0): #Back into the FORWARDS state after a delay
                 message["set_leds_colour"] = "red"
                 robot.state = RobotState.FORWARDS
+
+        elif robot.state == RobotState.TO_OUR_GOAL:
+            print(f'bearing to goal: {robot.bearing_to_our_goal}')
+            if robot.distance_to_our_goal < 0.2:
+                robot.state = RobotState.TO_THEIR_GOAL
+            message["set_leds_colour"] = "cyan"
+            if abs(robot.bearing_to_our_goal) < 20:
+                robot.left = robot.right = robot.MAX_SPEED
+            elif robot.bearing_to_our_goal > 0:
+                robot.left = int(float(robot.MAX_SPEED) / 1.4)
+                robot.right = -int(float(robot.MAX_SPEED) / 1.4)
+            else:
+                robot.left = -int(float(robot.MAX_SPEED) / 1.4)
+                robot.right = int(float(robot.MAX_SPEED) / 1.4)
 
         #This is an example state for moving towards the ball
         elif robot.state == RobotState.TO_BALL:
